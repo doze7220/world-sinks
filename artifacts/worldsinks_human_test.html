@@ -1,0 +1,2045 @@
+<!DOCTYPE html>
+<html lang="ja">
+<!--
+===== 変更履歴 (Version Management) =====
+v0.3.0 : 人間ユニット仮実装
+v0.2.3 : 崩壊タイマー停止バグの修正
+         - 連鎖フェーズ外でヒビ割れブロックが停止する問題を解消
+         - update()内での強制的なタイマー進行処理を追加
+v0.2.2 : 入力仕様およびUIの洗練
+         - 「PUSH ANY KEY」を「PUSH SPACE KEY」に変更
+         - 画面遷移の入力をスペースキーのみに限定
+v0.2.1 : 高度制限ルールの調整と不具合修正
+         - 爆弾を高度制限による破壊の対象外に設定
+         - 設置（merge）時の即時高度チェックによる追い越し防止
+v0.2.0 : 限界高度制限および爆弾ブロックの実装
+         - 安全高度+6マスの制限（LIMIT_HEIGHT）を追加
+         - 一定時間で爆発し周囲を破壊する「爆弾」を導入
+v0.1.2 : 落下・衝突判定の不具合修正
+         - setupGravityのループ範囲修正による最下段の接地判定ミス解消
+         - 連鎖中にブロックが空中に固定されるバグを修正
+v0.1.1 : 非同期連鎖（アクティブ・カスケード）システムの導入
+         - 重力落下と消去アニメーションをプレイヤーの操作から分離
+         - 連鎖中も新しいブロックの操作・設置が可能に
+v0.1.0 : ブロック構成変更
+         - ブロックを5→4種類に減少
+         - 落ちるブロックを2～4塊に変更
+         - ブロック種別・塊数のパラメータ化
+         - ブロックアニメーションの細分化
+         - ブロックにヒビが入る演出（ヒビ割れフェーズ）の導入
+v0.0.2 : UI/エフェクト強化
+         - タイトル画面、ゲームオーバー画面、ゲームクリア画面、操作説明画面追加
+         - 画面遷移を追加
+         - ブロック崩壊のパーティクル追加
+         - レーダーを相対的表示に変更
+         - 水に波アニメーション追加
+         - 背景描画の追加
+         - Caution演出追加
+v0.0.1 : 試作開始
+         - ChatGPTを用いた試作
+         - 最低限のゲームプレイができる内容を作成
+         - 不具合が取れずにCursorへ移行
+-->
+
+<head>
+  <meta charset="UTF-8">
+  <title>世界沈没</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+    }
+
+    #wrap {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      margin-top: 20px;
+    }
+
+    canvas {
+      background: #111;
+    }
+
+    #rightUI {
+      position: relative;
+      width: 150px;
+      height: 480px;
+      font-size: 11px;
+      display: none;
+    }
+
+    .label {
+      position: absolute;
+      left: 0;
+      transform: translateY(-100%);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>世界沈没</h2>
+
+  <div id="wrap">
+    <canvas id="game" width="530" height="480"></canvas>
+  </div>
+
+  <script>
+
+    /* ===== 爆弾パラメータ ===== */
+    const BOMB_TIMER_MIN = 20;
+    const BOMB_TIMER_MAX = 60;
+    const BOMB_START_METERS = 0; //100
+    const BOMB_PROB_STEP_METERS = 10;
+    const BOMB_PROB_STEP_PERCENT = 50; //1
+    const BOMB_PROB_MAX_PERCENT = 10;
+    const BOMB_CHECK_INTERVAL = 5; //10
+    const BOMB_FALL_SPEED = 15;
+
+    /* ===== ブロック設定 ===== */
+    const BLOCK_TYPES = 4;
+    const RANDOM_SHAPE = true;
+    const BLOCK_SHAPE_SIZE = 2;
+
+    /* ===== フィールド設定 ===== */
+    const COLS = 6, ROWS = 12, TOTAL_ROWS = 200;
+    const SIZE = 40;
+
+    /* ===== 表示・カメラ設定 ===== */
+    const LEFT_UI_WIDTH = 70;
+    const OFFSET_X = LEFT_UI_WIDTH;
+    const CAMERA_LERP = 0.05;
+    const SAFE_LINE_SCREEN_Y = ROWS - 3;
+
+    /* ===== 操作・スピード設定 ===== */
+    const FALL = 0.6;
+    const FAST = 0.05;
+    const WATER_SPEED = 0.15;
+    const WATER_START_DELAY = 0;
+    const WATER_START_METERS = -10;
+    const PAIR_MOVE_LERP = 0.28;
+    const PAIR_FALL_LERP = 0.18;
+    const PAIR_ROT_LERP = 0.25;
+
+    /* ===== 高度制限設定 ===== */
+    const LIMIT_HEIGHT = 6;
+
+    /* ===== 高度・ゴール設定 ===== */
+    const METERS_PER_ROW = 10;
+    const GOAL_METERS = 200;
+
+    /* ===== アニメーション設定 ===== */
+    const ANIM_GLOW_SEC = 0.5;
+    const ANIM_CRACK_SEC = 1.0;
+    const ANIM_TOTAL_SEC = ANIM_GLOW_SEC + ANIM_CRACK_SEC;
+    const ANIM_FALL_DELAY = 0.1;
+    const ANIM_FALL_SPEED = 20.0;
+
+    /* ===== エフェクト設定 ===== */
+    const PARTICLE_DIV = 4;
+    const PARTICLE_SIZE = SIZE / PARTICLE_DIV;
+    const PARTICLE_LIFE = 55;
+    const PARTICLE_SPEED = 0.055;
+    const PARTICLE_GRAVITY = 0.006;
+    const PARTICLE_FRICTION = 0.985;
+
+    /* ===== システム設定 ===== */
+    const MAX_CASCADE_STEPS = 200;
+
+    function rand(a = 1, b = BLOCK_TYPES) {
+      return Math.floor(Math.random() * (b - a + 1)) + a;
+    }
+
+    /* ===== 状態 ===== */
+    function createInitialGrid() {
+      const g = Array.from({ length: TOTAL_ROWS }, () => Array(COLS).fill(0));
+      for (let x = 0; x < COLS; x++) {
+        g[TOTAL_ROWS - 1][x] = 9;
+        g[TOTAL_ROWS - 2][x] = rand();
+      }
+      return g;
+    }
+
+    let grid = createInitialGrid();
+
+    let cameraY = TOTAL_ROWS - ROWS;
+    let targetCameraY = cameraY;
+
+    let pair = null;
+    let drop = 0;
+    let fast = false;
+
+    let elapsed = 0;
+    let water = WATER_START_METERS / METERS_PER_ROW;
+    let safeLine = TOTAL_ROWS - 1;
+    let gravityActive = false;
+
+    let cascadePhase = "fall_setup";
+    let cascadeSteps = 0;
+
+    let particles = [];
+    let state = "title"; // title | intro | playing | clear | gameover
+
+    let spaceReleased = true;
+
+    let fallingBombs = [];
+    let lastBombCheck = 0;
+
+    function resetGame() {
+      grid = createInitialGrid();
+      cameraY = TOTAL_ROWS - ROWS;
+      targetCameraY = cameraY;
+      pair = null;
+      drop = 0;
+      fast = false;
+      elapsed = 0;
+      water = WATER_START_METERS / METERS_PER_ROW;
+      safeLine = TOTAL_ROWS - 1;
+      gravityActive = false;
+      cascadePhase = "fall_setup";
+      cascadeSteps = 0;
+      particles = [];
+      floodPhase = "none";
+      floodBlinkStart = 0;
+      floodCountdownEnd = 0;
+      limitWarningUntil = 0;
+      gameoverStart = 0;
+      gameoverCameraY = 0;
+      clearStart = 0;
+      clearCelebrationFired = false;
+      confetti.length = 0;
+      fallingBombs = [];
+      lastBombCheck = 0;
+
+      // 人間初期化
+      createInitialHumans();
+    }
+
+    /* ===== GAME OVER 演出 ===== */
+    const GAMEOVER_FALL_SEC = 5;
+    const GAMEOVER_WATER_MULT = 10;
+    const GAMEOVER_GRAVITY_STEPS = 6;
+    let gameoverStart = 0;
+    let gameoverCameraY = 0;
+    let clearStart = 0;
+    let clearCelebrationFired = false;
+
+    function startGameOver() {
+      if (state === "gameover") return;
+      state = "gameover";
+      gameoverStart = elapsed;
+      gameoverCameraY = cameraY;
+      pair = null;
+      gravityActive = false;
+    }
+
+    /* ===== 警告表示 ===== */
+    const LIMIT_WARNING_LINES = [
+      "地面は安全高度から",
+      "6ブロック上までしか",
+      "積めません！"
+    ];
+    const LIMIT_WARNING_SEC = 5;
+    let limitWarningUntil = 0;
+
+    const INTRO_LINES = [
+      "ある日、突如として",
+      "世界中の水位が上昇しはじめた。",
+      "このままでは世界は沈没してしまう！",
+      "",
+      "神である貴方の力で「大地」を作り出し",
+      "人類を沈没から救うのだ！"
+    ];
+    const INTRO_CONTROLS = [
+      "【操作】",
+      "← → : ブロック移動",
+      "↑ : 回転　↓ : 高速落下",
+      "",
+      "【ルール】",
+      "地面は4つ以上繋がると消える",
+      "横一列が地面で埋まった高さが安全高度",
+      "水位が安全高度を超えると世界沈没の危機",
+      "安全高度をゴールまで作り上げよう！"
+    ];
+
+    function triggerLimitWarning() {
+      if (floodPhase === "countdown") return; // 世界沈没カウントダウン中は出さない
+      if (elapsed < limitWarningUntil) return; // 多重発生防止（表示中は更新しない）
+      limitWarningUntil = elapsed + LIMIT_WARNING_SEC;
+    }
+
+    /* ===== 水没猶予（警告→カウントダウン） ===== */
+    const FLOOD_BLINKS = 3;
+    const FLOOD_BLINK_PERIOD = 0.35; // 秒（点滅のテンポ）
+    const FLOOD_GRACE_SEC = 10.0; // 秒（点滅後に始まるカウントダウン猶予）
+    let floodPhase = "none"; // none | blink | countdown
+    let floodBlinkStart = 0;
+    let floodCountdownEnd = 0;
+
+    function isCautionPause() {
+      return state === "playing" && floodPhase === "blink";
+    }
+
+    function resetFloodGrace() {
+      floodPhase = "none";
+    }
+
+    function startFloodGrace() {
+      if (floodPhase !== "none") return;
+      // 既存の警告が出ていたら即消してCAUTIONを優先
+      limitWarningUntil = 0;
+      floodPhase = "blink";
+      floodBlinkStart = elapsed;
+    }
+
+    function updateFloodGrace() {
+      if (floodPhase === "none") return;
+
+      if (floodPhase === "blink") {
+        const blinkTotal = FLOOD_BLINKS * 2 * FLOOD_BLINK_PERIOD;
+        if (elapsed - floodBlinkStart >= blinkTotal) {
+          floodPhase = "countdown";
+          floodCountdownEnd = elapsed + FLOOD_GRACE_SEC;
+        }
+        return;
+      }
+
+      if (floodPhase === "countdown") {
+        if (elapsed >= floodCountdownEnd) {
+          startGameOver();
+        }
+      }
+    }
+
+    /* ===== canvas ===== */
+    const game = document.getElementById("game");
+    const ctx = game.getContext("2d");
+    const MAIN_W = 340;
+    const MAIN_H = 480;
+    const RADAR_CANVAS_W = 190;
+    const RADAR_CANVAS_H = 480;
+    const RADAR_X = MAIN_W;
+    const TOTAL_W = MAIN_W + RADAR_CANVAS_W;
+    game.width = TOTAL_W;
+    game.height = MAIN_H;
+
+    const COLORS = [null, "#f55", "#5f5", "#55f", "#ff5", "#f5f"];
+    const GROUND = "#6b4a2b";
+    const WATER_COLOR = "rgba(65,165,245,0.56)";
+    const WATER_LINE = "#66d9ff";
+    const GOAL_LINE = "#ffeb3b";
+    const SAFE_LINE = "#fff";
+
+    const WATER_WAVE_AMP = 4;
+    const WATER_WAVE_LEN = 140;
+    const WATER_WAVE_SPEED = 2.2;
+
+    const RADAR_INNER_W = 48;
+    const RADAR_PAD = 10;
+    const RADAR_V_PAD = 12;
+    const RADAR_GOAL_LABEL_TOP = 15;
+    const RADAR_LABEL_PAD_R = 4;
+
+    /* 背景（空・雲） */
+    const SKY_TOP = "#2c6fff";
+    const SKY_BOTTOM = "#bfe9ff";
+    const CLOUD_COUNT = 14;
+    const CLOUD_PARALLAX = 0.6;
+    const CLOUD_DRIFT_PX_PER_SEC = 6;
+    const CLOUD_ALPHA = 0.9;
+    const TEST_EXTEND_WORLD_BG = true; // テスト用: true でレーダー側にも世界背景を描画
+
+    /* ===== 座標 ===== */
+    const screenY = (y) => (y - cameraY) * SIZE;
+
+    function heightMeters() {
+      // safeLine は「安全ラインの1つ上の行」を指すため、m換算はさらに1段下げる
+      return Math.max(0, (TOTAL_ROWS - safeLine - 2) * METERS_PER_ROW);
+    }
+
+    function waterMeters() {
+      return Math.floor(water * METERS_PER_ROW);
+    }
+
+    function waterWorldY() {
+      return TOTAL_ROWS - 1 - water;
+    }
+
+    const clouds = Array.from({ length: CLOUD_COUNT }, () => ({
+      x: Math.random() * 340,
+      y: Math.random() * TOTAL_ROWS,
+      s: 18 + Math.random() * 28
+    }));
+
+    function drawSkyAndClouds(targetCtx, width, height, xOffset = 0, totalWidth = width) {
+      const g = targetCtx.createLinearGradient(0, 0, 0, height);
+      g.addColorStop(0, SKY_TOP);
+      g.addColorStop(1, SKY_BOTTOM);
+      targetCtx.fillStyle = g;
+      targetCtx.fillRect(0, 0, width, height);
+
+      targetCtx.save();
+      targetCtx.globalAlpha = CLOUD_ALPHA;
+      targetCtx.fillStyle = "rgba(255,255,255,0.95)";
+
+      for (const c of clouds) {
+        const wrapW = Math.max(1, totalWidth);
+        const worldX = (c.x + elapsed * CLOUD_DRIFT_PX_PER_SEC) % (wrapW + c.s * 2) - c.s;
+        const x = worldX - xOffset;
+        const y = ((c.y - cameraY * CLOUD_PARALLAX) * SIZE);
+        const py = y % (height + c.s * 4);
+        const cy = py - c.s * 2;
+        if (cy < -120 || cy > 600) continue;
+        if (x < -c.s * 2 || x > width + c.s * 2) continue;
+
+        const s = c.s;
+        targetCtx.beginPath();
+        targetCtx.arc(x, cy, s * 0.55, 0, Math.PI * 2);
+        targetCtx.arc(x + s * 0.55, cy + s * 0.05, s * 0.7, 0, Math.PI * 2);
+        targetCtx.arc(x + s * 1.15, cy, s * 0.55, 0, Math.PI * 2);
+        targetCtx.arc(x + s * 0.35, cy - s * 0.2, s * 0.5, 0, Math.PI * 2);
+        targetCtx.arc(x + s * 0.9, cy - s * 0.22, s * 0.5, 0, Math.PI * 2);
+        targetCtx.fill();
+      }
+      targetCtx.restore();
+    }
+
+    /* ===== ブロック描画関連 ===== */
+    function drawCrack(px, py, progress) {
+      ctx.save();
+      ctx.strokeStyle = `rgba(0,0,0,${Math.min(1, progress * 2)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px + SIZE * 0.2, py);
+      ctx.lineTo(px + SIZE * 0.4, py + SIZE * 0.4);
+      ctx.lineTo(px + SIZE * 0.3, py + SIZE * 0.7);
+      ctx.lineTo(px + SIZE * 0.6, py + SIZE);
+
+      ctx.moveTo(px + SIZE * 0.4, py + SIZE * 0.4);
+      ctx.lineTo(px + SIZE * 0.8, py + SIZE * 0.6);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBlockCell(px, py, color, timer = null) {
+      ctx.fillStyle = color;
+      ctx.fillRect(px, py, SIZE, SIZE);
+
+      if (timer !== null && timer > ANIM_CRACK_SEC) {
+        let alpha = (timer - ANIM_CRACK_SEC) / ANIM_GLOW_SEC;
+        ctx.fillStyle = `rgba(255,255,255,${alpha * 0.8})`;
+        ctx.fillRect(px, py, SIZE, SIZE);
+      }
+
+      ctx.strokeStyle = "rgba(0,0,0,0.75)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(px - 1, py - 1, SIZE + 2, SIZE + 2);
+
+      if (timer !== null && timer <= ANIM_CRACK_SEC) {
+        drawCrack(px, py, 1.0 - (timer / ANIM_CRACK_SEC));
+      }
+    }
+
+    function timeToFloodSec() {
+      const waterM = water * METERS_PER_ROW;
+      const safeM = heightMeters();
+      const riseMps = WATER_SPEED * METERS_PER_ROW;
+      if (riseMps <= 0) return Infinity;
+
+      const remainingM = safeM - waterM;
+      if (remainingM <= 0) return 0;
+
+      if (elapsed < WATER_START_DELAY) {
+        return (WATER_START_DELAY - elapsed) + (remainingM / riseMps);
+      }
+
+      return remainingM / riseMps;
+    }
+
+    function radarYByMeters(m) {
+      const clamped = Math.max(0, Math.min(GOAL_METERS, m));
+      const innerTop = RADAR_V_PAD;
+      const innerBottom = RADAR_CANVAS_H - RADAR_V_PAD;
+      const innerH = Math.max(1, innerBottom - innerTop);
+      return innerBottom - (clamped / GOAL_METERS) * innerH;
+    }
+
+    /* ===== ぷよ ===== */
+    function getShapeOffsets(size, rot) {
+      const base = [[0, 0]];
+      if (size >= 2) base.push([0, -1]);
+      if (size >= 3) base.push([1, 0]);
+      if (size >= 4) base.push([1, -1]);
+
+      return base.map(([bx, by]) => {
+        if (rot === 0) return [bx, by];
+        if (rot === 1) return [-by, bx];
+        if (rot === 2) return [-bx, -by];
+        if (rot === 3) return [by, -bx];
+      });
+    }
+
+    function newPair() {
+      let size;
+      if (RANDOM_SHAPE) {
+        const r = Math.random();
+        if (r < 0.6) size = 2;
+        else if (r < 0.9) size = 3;
+        else size = 4;
+      } else {
+        if (BLOCK_SHAPE_SIZE <= 1) size = 2;
+        else if (BLOCK_SHAPE_SIZE >= 5) size = 4;
+        else size = Math.floor(BLOCK_SHAPE_SIZE);
+      }
+
+      const c = [];
+      for (let i = 0; i < size; i++) {
+        c.push(rand());
+      }
+
+      return {
+        x: 2,
+        y: Math.floor(cameraY),
+        rot: 0,
+        size: size,
+        c: c,
+        rx: 2,
+        ry: Math.floor(cameraY),
+        rrot: 0
+      };
+    }
+
+    function blocks(p) {
+      const offsets = getShapeOffsets(p.size, p.rot);
+      return offsets.map((off, i) => {
+        return { x: p.x + off[0], y: p.y + off[1], c: p.c[i] };
+      });
+    }
+
+    function renderBlocks(p) {
+      const angle = p.rrot * Math.PI / 2;
+      const sin = Math.sin(angle);
+      const cos = Math.cos(angle);
+
+      const base = [[0, 0]];
+      if (p.size >= 2) base.push([0, -1]);
+      if (p.size >= 3) base.push([1, 0]);
+      if (p.size >= 4) base.push([1, -1]);
+
+      return base.map(([bx, by], i) => {
+        const ox = bx * cos - by * sin;
+        const oy = bx * sin + by * cos;
+        return { x: p.rx + ox, y: p.ry + oy, c: p.c[i] };
+      });
+    }
+
+    function updatePairRender() {
+      if (!pair) return;
+
+      pair.rx += (pair.x - pair.rx) * PAIR_MOVE_LERP;
+      pair.ry += (pair.y - pair.ry) * PAIR_FALL_LERP;
+
+      let diff = pair.rot - pair.rrot;
+      if (diff > 2) diff -= 4;
+      if (diff < -2) diff += 4;
+
+      pair.rrot += diff * PAIR_ROT_LERP;
+
+      if (pair.rrot < 0) pair.rrot += 4;
+      if (pair.rrot >= 4) pair.rrot -= 4;
+    }
+
+    function hit(bs) {
+      for (let b of bs) {
+        if (b.x < 0 || b.x >= COLS || b.y >= TOTAL_ROWS) return true;
+        if (b.y < 0) continue;
+
+        let visualTop = TOTAL_ROWS;
+        for (let y = 0; y < TOTAL_ROWS; y++) {
+          let cell = grid[y][b.x];
+          if (cell) {
+            let offset = (typeof cell === 'object' && cell.renderOffsetY) ? cell.renderOffsetY : 0;
+            visualTop = y + offset;
+            break;
+          }
+        }
+
+        if (b.y + 1 > visualTop + 0.01) return true;
+      }
+      return false;
+    }
+
+    function merge() {
+      for (let b of blocks(pair)) {
+        if (b.y >= 0) {
+          grid[b.y][b.x] = { type: 'block', color: b.c, renderOffsetY: 0, fallDelay: 0 };
+        }
+      }
+      if (applyLimit()) {
+        triggerLimitWarning();
+      }
+    }
+
+    /* ===== パーティクル ===== */
+    function spawnParticles(x, y, color) {
+      for (let py = 0; py < PARTICLE_DIV; py++) {
+        for (let px = 0; px < PARTICLE_DIV; px++) {
+          const localX = (px + 0.5) / PARTICLE_DIV;
+          const localY = (py + 0.5) / PARTICLE_DIV;
+
+          const dx = localX - 0.5;
+          const dy = localY - 0.5;
+
+          particles.push({
+            x: x + localX,
+            y: y + localY,
+            vx: dx * PARTICLE_SPEED + (Math.random() - 0.5) * 0.012,
+            vy: Math.abs(dy) * PARTICLE_SPEED * 0.25 + Math.random() * 0.018,
+            life: PARTICLE_LIFE + Math.random() * 18,
+            maxLife: PARTICLE_LIFE + 18,
+            c: color,
+            size: PARTICLE_SIZE
+          });
+        }
+      }
+    }
+
+    function updateParticles() {
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += PARTICLE_GRAVITY;
+        p.vx *= PARTICLE_FRICTION;
+        p.vy *= PARTICLE_FRICTION;
+        p.life--;
+      });
+      particles = particles.filter(p => p.life > 0);
+    }
+
+    function drawParticles() {
+      particles.forEach(p => {
+        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+        ctx.fillStyle = p.c;
+
+        const px = p.x * SIZE + OFFSET_X - p.size / 2;
+        const py = screenY(p.y) - p.size / 2;
+
+        ctx.fillRect(px, py, p.size, p.size);
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    /* ===== ゴール演出（紙吹雪） ===== */
+    let confetti = [];
+
+    function spawnClearCelebration() {
+      const cx = OFFSET_X + (COLS * SIZE) / 2;
+      const cy = 220;
+      const colors = ["#ff4d4d", "#ffd54f", "#66e066", "#66b3ff", "#ff7ad9", "#ffffff"];
+
+      for (let i = 0; i < 140; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 2.4 + Math.random() * 3.2;
+        confetti.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp - 2.2,
+          g: 0.11 + Math.random() * 0.06,
+          r: Math.random() * Math.PI * 2,
+          vr: (Math.random() - 0.5) * 0.35,
+          w: 8 + Math.random() * 7,
+          h: 4 + Math.random() * 5,
+          c: colors[(Math.random() * colors.length) | 0],
+          life: 85 + Math.random() * 45
+        });
+      }
+    }
+
+    function updateCelebrationEffects() {
+      confetti.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.g;
+        p.vx *= 0.996;
+        p.r += p.vr;
+        p.life--;
+      });
+      confetti = confetti.filter(p => p.life > 0 && p.y < 560);
+
+    }
+
+    function drawCelebrationEffects() {
+      confetti.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.life / 90);
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.r);
+        ctx.fillStyle = p.c;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      });
+
+    }
+
+    /* ===== 重力 ===== */
+    function forceGravity() {
+      for (let x = 0; x < COLS; x++) {
+        for (let y = TOTAL_ROWS - 2; y >= 0; y--) {
+          if (grid[y][x] && grid[y][x] !== 9 && !grid[y + 1][x]) {
+            grid[y + 1][x] = grid[y][x];
+            grid[y][x] = 0;
+          }
+        }
+      }
+    }
+
+    function setupGravity() {
+      let movedAny = false;
+      for (let x = 0; x < COLS; x++) {
+        let emptyY = -1;
+        for (let y = TOTAL_ROWS - 1; y >= 0; y--) {
+          let cell = grid[y][x];
+          if (!cell) {
+            if (emptyY === -1) emptyY = y;
+          } else if (cell !== 9) {
+            if (emptyY !== -1) {
+              let obj = cell;
+              if (typeof obj !== 'object') {
+                obj = { type: 'block', color: obj };
+              }
+
+              obj.renderOffsetY = y - emptyY;
+              obj.fallDelay = ANIM_FALL_DELAY;
+
+              grid[emptyY][x] = obj;
+              grid[y][x] = 0;
+              movedAny = true;
+              emptyY--;
+            }
+          } else if (cell === 9) {
+            emptyY = -1;
+          }
+        }
+      }
+      return movedAny;
+    }
+
+    /* ===== 崩壊 ===== */
+    function applyLimit() {
+      updateSafe();
+      let erased = false;
+
+      for (let x = 0; x < COLS; x++) {
+        let count = 0;
+
+        for (let y = safeLine; y >= 0; y--) {
+          let cell = grid[y][x];
+          if (cell && cell !== 9) {
+            count++;
+
+            if (count > LIMIT_HEIGHT) {
+              if (typeof cell === 'object' && cell.state === 'cracking') continue;
+              if (typeof cell === 'object' && cell.renderOffsetY < 0) continue;
+              if (typeof cell === 'object' && cell.type === 'bomb') continue;
+
+              let color = (typeof cell === 'object') ? cell.color : cell;
+              let particleColor = COLORS[color] || "#555555";
+
+              spawnParticles(x, y, particleColor);
+              grid[y][x] = 0;
+              erased = true;
+            }
+          } else {
+            count = 0;
+          }
+        }
+      }
+
+      return erased;
+    }
+
+    /* ===== 消去 ===== */
+    function flagErase() {
+      let visited = Array.from({ length: TOTAL_ROWS }, () => Array(COLS).fill(false));
+      let erased = false;
+      let bombsToErase = new Set();
+      let blocksToErase = [];
+
+      for (let y = 0; y < TOTAL_ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          let cell = grid[y][x];
+          if (!cell || cell === 9 || visited[y][x]) continue;
+
+          if (typeof cell === 'object' && (cell.type === 'bomb' || cell.state === 'cracking')) continue;
+          if (typeof cell === 'object' && cell.renderOffsetY < 0) continue;
+
+          let color = (typeof cell === 'object') ? cell.color : cell;
+          let stack = [[x, y]];
+          let group = [];
+          let groupBombs = new Set();
+          visited[y][x] = true;
+
+          while (stack.length) {
+            let [cx, cy] = stack.pop();
+            group.push([cx, cy]);
+
+            [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+              let nx = cx + dx;
+              let ny = cy + dy;
+
+              if (nx >= 0 && nx < COLS && ny >= 0 && ny < TOTAL_ROWS) {
+                let nCell = grid[ny][nx];
+                if (nCell) {
+                  if (typeof nCell === 'object' && nCell.type === 'bomb') {
+                    groupBombs.add(`${nx},${ny}`);
+                  } else if (!visited[ny][nx]) {
+                    let isCracking = (typeof nCell === 'object' && nCell.state === 'cracking');
+                    let isFalling = (typeof nCell === 'object' && nCell.renderOffsetY < 0);
+                    let nColor = (typeof nCell === 'object') ? nCell.color : nCell;
+                    if (!isCracking && !isFalling && nColor === color) {
+                      visited[ny][nx] = true;
+                      stack.push([nx, ny]);
+                    }
+                  }
+                }
+              }
+            });
+          }
+
+          if (group.length >= 4) {
+            group.forEach(([gx, gy]) => blocksToErase.push([gx, gy, color]));
+            groupBombs.forEach(b => bombsToErase.add(b));
+            erased = true;
+          }
+        }
+      }
+
+      blocksToErase.forEach(([bx, by, color]) => {
+        grid[by][bx] = { type: 'block', color: color, state: 'cracking', timer: ANIM_TOTAL_SEC };
+      });
+
+      bombsToErase.forEach(bStr => {
+        let [bx, by] = bStr.split(',').map(Number);
+        if (grid[by][bx]) {
+          grid[by][bx] = { type: 'bomb', timer: grid[by][bx].timer, state: 'cracking', crackTimer: ANIM_TOTAL_SEC };
+        }
+      });
+
+      return erased;
+    }
+
+    /* ===== セーフライン ===== */
+    function updateSafe() {
+      for (let y = 0; y < TOTAL_ROWS - 1; y++) {
+        if (grid[y].every(v => v)) {
+          safeLine = y - 1;
+          return;
+        }
+      }
+
+      safeLine = TOTAL_ROWS - 1;
+    }
+
+    /* ===== カスケード ===== */
+    function isBoardStable() {
+      for (let y = 0; y < TOTAL_ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          let cell = grid[y][x];
+          if (cell && typeof cell === 'object') {
+            if (cell.state === 'cracking') return false;
+            if (cell.renderOffsetY < 0) return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    function startCascade() {
+      if (!gravityActive) {
+        gravityActive = true;
+        cascadePhase = "fall_setup";
+        cascadeSteps = 0;
+      }
+    }
+
+    function updateCascade(dt) {
+      cascadeSteps++;
+
+      if (cascadeSteps > MAX_CASCADE_STEPS) {
+        console.warn("Cascade stopped by safety limit");
+        gravityActive = false;
+        cascadePhase = "fall_setup";
+        return;
+      }
+
+      let stillFalling = false;
+      for (let y = 0; y < TOTAL_ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          let cell = grid[y][x];
+          if (cell && typeof cell === 'object' && cell.renderOffsetY < 0) {
+            if (cell.fallDelay > 0) {
+              cell.fallDelay -= dt;
+              stillFalling = true;
+            } else {
+              cell.renderOffsetY += ANIM_FALL_SPEED * dt;
+              if (cell.renderOffsetY >= 0) {
+                cell.renderOffsetY = 0;
+              } else {
+                stillFalling = true;
+              }
+            }
+          }
+        }
+      }
+
+      if (cascadePhase === "fall_setup") {
+        let moved = setupGravity();
+
+        if (moved || stillFalling) {
+          cascadePhase = "falling";
+        } else {
+          cascadePhase = "erase_setup";
+        }
+        return;
+      }
+
+      if (cascadePhase === "falling") {
+        if (!stillFalling) cascadePhase = "erase_setup";
+        return;
+      }
+
+      if (cascadePhase === "erase_setup") {
+        if (flagErase()) {
+          cascadePhase = "cracking";
+        } else {
+          cascadePhase = "limit";
+        }
+        return;
+      }
+
+      if (cascadePhase === "cracking") {
+        let stillCracking = false;
+        for (let y = 0; y < TOTAL_ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            let cell = grid[y][x];
+            if (cell && typeof cell === 'object' && cell.state === 'cracking') {
+              if (cell.type === 'bomb') {
+                cell.crackTimer -= dt;
+                if (cell.crackTimer <= 0) {
+                  spawnParticles(x, y, "#555555");
+                  grid[y][x] = 0;
+                } else {
+                  stillCracking = true;
+                }
+              } else {
+                cell.timer -= dt;
+                if (cell.timer <= 0) {
+                  spawnParticles(x, y, COLORS[cell.color]);
+                  grid[y][x] = 0;
+                } else {
+                  stillCracking = true;
+                }
+              }
+            }
+          }
+        }
+        if (!stillCracking) cascadePhase = "fall_setup";
+        return;
+      }
+
+      if (cascadePhase === "limit") {
+        if (applyLimit()) {
+          triggerLimitWarning();
+          cascadePhase = "cracking";
+        } else {
+          if (isBoardStable()) {
+            gravityActive = false;
+          }
+          cascadePhase = "fall_setup";
+        }
+      }
+    }
+
+    /* ===== update ===== */
+    function update(dt) {
+      elapsed += dt;
+
+      if (state === "gameover") {
+        // カメラ固定
+        cameraY = gameoverCameraY;
+
+        // ブロックをガラガラ落とす（消去/制限なしの単純重力）
+        for (let i = 0; i < GAMEOVER_GRAVITY_STEPS; i++) forceGravity();
+
+        // 水位をぐんぐん上げる
+        if (elapsed >= WATER_START_DELAY) {
+          water += dt * WATER_SPEED * GAMEOVER_WATER_MULT;
+          // 画面上端（cameraY）まで上がれば十分
+          const maxWater = (TOTAL_ROWS - 1) - cameraY;
+          water = Math.min(water, maxWater);
+        }
+
+        return;
+      }
+
+      if (state === "clear") {
+        const clearRiseSec = 2.4;
+        if (!clearCelebrationFired && (elapsed - clearStart) >= clearRiseSec) {
+          spawnClearCelebration();
+          clearCelebrationFired = true;
+        }
+        updateCelebrationEffects();
+        return;
+      }
+
+      if (state !== "playing") return;
+
+      // CAUTION 明滅中はゲーム進行を止める（演出だけ進める）
+      if (isCautionPause()) {
+        updateFloodGrace();
+        return;
+      }
+
+      if (elapsed >= WATER_START_DELAY) {
+        water += dt * WATER_SPEED;
+      }
+
+      if (state === "playing") {
+        // 爆弾チェック
+        if (elapsed - lastBombCheck >= BOMB_CHECK_INTERVAL) {
+          lastBombCheck += BOMB_CHECK_INTERVAL;
+          const currentM = heightMeters();
+          if (currentM >= BOMB_START_METERS) {
+            let prob = Math.floor((currentM - BOMB_START_METERS) / BOMB_PROB_STEP_METERS) * BOMB_PROB_STEP_PERCENT;
+            prob = Math.min(BOMB_PROB_MAX_PERCENT, prob);
+            if (Math.random() < prob / 100) {
+              fallingBombs.push({
+                x: Math.floor(Math.random() * COLS),
+                y: cameraY - 2,
+                timer: BOMB_TIMER_MIN + Math.random() * (BOMB_TIMER_MAX - BOMB_TIMER_MIN)
+              });
+            }
+          }
+        }
+
+        // 落下中爆弾の処理
+        for (let i = fallingBombs.length - 1; i >= 0; i--) {
+          let b = fallingBombs[i];
+          b.y += BOMB_FALL_SPEED * dt;
+          let gridY = Math.floor(b.y);
+          if (gridY >= TOTAL_ROWS || (gridY >= 0 && grid[gridY][b.x])) {
+            let placeY = gridY - 1;
+            if (placeY >= 0) {
+              grid[placeY][b.x] = { type: 'bomb', timer: b.timer };
+              if (!gravityActive) {
+                startCascade();
+              } else {
+                setupGravity();
+              }
+              if (applyLimit()) triggerLimitWarning();
+            }
+            fallingBombs.splice(i, 1);
+          }
+        }
+
+        // 爆弾タイマー減少・爆発
+        let exploded = false;
+        for (let y = 0; y < TOTAL_ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            let cell = grid[y][x];
+            if (typeof cell === 'object' && cell.type === 'bomb' && cell.state !== 'cracking') {
+              cell.timer -= dt;
+              if (cell.timer <= 0) {
+                for (let dy = -1; dy <= 1; dy++) {
+                  for (let dx = -1; dx <= 1; dx++) {
+                    let ny = y + dy;
+                    let nx = x + dx;
+                    if (nx >= 0 && nx < COLS && ny >= 0 && ny < TOTAL_ROWS && grid[ny][nx] !== 9) {
+                      if (grid[ny][nx]) {
+                        let color = (typeof grid[ny][nx] === 'number') ? COLORS[grid[ny][nx]] : "#ff3300";
+                        spawnParticles(nx, ny, color);
+                      }
+                      grid[ny][nx] = 0;
+                    }
+                  }
+                }
+                exploded = true;
+              }
+            }
+          }
+        }
+        if (exploded) {
+          if (!gravityActive) {
+            startCascade();
+          } else {
+            setupGravity();
+          }
+        }
+      }
+
+      updateSafe();
+
+      if (heightMeters() >= GOAL_METERS) {
+        state = "clear";
+        clearStart = elapsed;
+        clearCelebrationFired = false;
+        confetti.length = 0;
+        return;
+      }
+
+      // 水位が安全高度を越えたら「警告→猶予カウントダウン」
+      if ((water * METERS_PER_ROW) >= heightMeters()) {
+        startFloodGrace();
+      } else {
+        resetFloodGrace();
+      }
+      updateFloodGrace();
+      if (state !== "playing") return;
+
+      if (pair) updatePairRender();
+
+      if (gravityActive) {
+        updateCascade(dt);
+      }
+
+      // crackingブロックのタイマーを常に進める（gravityActive に関係なく）
+      // ※ cascadePhase === "cracking" で既に処理中のものは updateCascade 内で管理されるため
+      //   gravityActive=false の状態でヒビが残った場合の救済処理
+      if (!gravityActive) {
+        let anyCrackFinished = false;
+        for (let y = 0; y < TOTAL_ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            let cell = grid[y][x];
+            if (cell && typeof cell === 'object' && cell.state === 'cracking') {
+              let timerKey = cell.type === 'bomb' ? 'crackTimer' : 'timer';
+              cell[timerKey] -= dt;
+              if (cell[timerKey] <= 0) {
+                let color = cell.type === 'bomb' ? "#555555" : COLORS[cell.color];
+                spawnParticles(x, y, color);
+                grid[y][x] = 0;
+                anyCrackFinished = true;
+              }
+            }
+          }
+        }
+        if (anyCrackFinished) {
+          startCascade();
+        }
+      }
+
+      if (!pair) pair = newPair();
+      updateHumans(dt);
+
+      drop += dt;
+      let speed = fast ? FAST : FALL;
+
+      if (drop > speed) {
+        drop = 0;
+        pair.y++;
+
+        if (hit(blocks(pair))) {
+          pair.y--;
+          merge();
+          pair = null;
+
+          if (!gravityActive) {
+            startCascade();
+          } else {
+            setupGravity();
+            // crackingブロックがあるのに cracking フェーズに戻っていない場合は戻す
+            let hasCracking = false;
+            for (let y = 0; y < TOTAL_ROWS; y++) {
+              for (let x = 0; x < COLS; x++) {
+                let c = grid[y][x];
+                if (c && typeof c === 'object' && c.state === 'cracking') { hasCracking = true; }
+              }
+            }
+            if (hasCracking && cascadePhase !== 'cracking') {
+              cascadePhase = 'cracking';
+            }
+          }
+        }
+      }
+
+      if (state === "playing") {
+        targetCameraY = (safeLine + 1) - SAFE_LINE_SCREEN_Y;
+        targetCameraY = Math.max(0, Math.min(TOTAL_ROWS - ROWS, targetCameraY));
+        cameraY += (targetCameraY - cameraY) * CAMERA_LERP;
+      }
+    }
+
+    /* ===== 爆弾描画 ===== */
+    function drawBomb(px, py, timer, crackTimer = null) {
+      const isFlashing = (timer <= 5 && (Math.floor(elapsed * 6) % 2) === 0);
+
+      ctx.save();
+      ctx.fillStyle = isFlashing ? "#ff3333" : "#222222";
+      ctx.beginPath();
+      ctx.arc(px + SIZE / 2, py + SIZE / 2, SIZE * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#000";
+      ctx.stroke();
+
+      ctx.strokeStyle = "#8b4513";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(px + SIZE / 2, py + SIZE * 0.1);
+      ctx.quadraticCurveTo(px + SIZE * 0.8, py - SIZE * 0.2, px + SIZE * 0.8, py - SIZE * 0.3);
+      ctx.stroke();
+
+      if (timer > 0 && Math.random() < 0.8) {
+        ctx.fillStyle = ["#ffeb3b", "#ff9800", "#ff5722"][Math.floor(Math.random() * 3)];
+        ctx.beginPath();
+        const sx = px + SIZE * 0.8 + (Math.random() - 0.5) * 5;
+        const sy = py - SIZE * 0.3 + (Math.random() - 0.5) * 5;
+        ctx.arc(sx, sy, 3 + Math.random() * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(Math.ceil(timer), px + SIZE / 2, py + SIZE / 2);
+
+      if (crackTimer !== null && crackTimer > ANIM_CRACK_SEC) {
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.fillRect(px, py, SIZE, SIZE);
+      }
+      if (crackTimer !== null && crackTimer <= ANIM_CRACK_SEC) {
+        drawCrack(px, py, 1.0 - (crackTimer / ANIM_CRACK_SEC));
+      }
+
+      ctx.restore();
+    }
+
+    /* ===== draw ===== */
+    function draw() {
+
+      ctx.clearRect(0, 0, TOTAL_W, MAIN_H);
+      const worldTotalW = TOTAL_W;
+      if (TEST_EXTEND_WORLD_BG) {
+        drawSkyAndClouds(ctx, TOTAL_W, MAIN_H, 0, worldTotalW);
+      } else {
+        drawSkyAndClouds(ctx, MAIN_W, MAIN_H, 0, MAIN_W);
+      }
+
+      if (state === "title") {
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.fillRect(0, 0, TOTAL_W, MAIN_H);
+        const cx = TOTAL_W / 2;
+        const blink = (Math.floor(elapsed * 2) % 2) === 0;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = "rgba(20,20,40,0.95)";
+        ctx.fillStyle = "#f7f7ff";
+        ctx.font = "64px sans-serif";
+        ctx.strokeText("世界沈没", cx, 200);
+        ctx.fillText("世界沈没", cx, 200);
+        if (blink) {
+          ctx.font = "28px sans-serif";
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = "rgba(0,0,0,0.9)";
+          ctx.fillStyle = "#ffd54f";
+          ctx.strokeText("PUSH SPACE KEY", cx, 315);
+          ctx.fillText("PUSH SPACE KEY", cx, 315);
+        }
+        ctx.restore();
+        return;
+      }
+
+      if (state === "intro") {
+        ctx.fillStyle = "rgba(0,0,0,0.48)";
+        ctx.fillRect(28, 28, TOTAL_W - 56, MAIN_H - 56);
+        const cx = TOTAL_W / 2;
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = "rgba(0,0,0,0.92)";
+        ctx.fillStyle = "#fff";
+
+        ctx.font = "22px sans-serif";
+        let y = 50;
+        for (const line of INTRO_LINES) {
+          if (line === "") {
+            y += 10;
+            continue;
+          }
+          ctx.strokeText(line, cx, y);
+          ctx.fillText(line, cx, y);
+          y += 30;
+        }
+
+        ctx.font = "15px sans-serif";
+        y += 8;
+        for (const line of INTRO_CONTROLS) {
+          if (line === "") {
+            y += 6;
+            continue;
+          }
+          ctx.strokeText(line, cx, y);
+          ctx.fillText(line, cx, y);
+          y += 21;
+        }
+
+        const blink = (Math.floor(elapsed * 2) % 2) === 0;
+        if (blink) {
+          ctx.font = "26px sans-serif";
+          ctx.fillStyle = "#ffd54f";
+          ctx.strokeText("PUSH SPACE KEY", cx, MAIN_H - 50);
+          ctx.fillText("PUSH SPACE KEY", cx, MAIN_H - 50);
+        }
+        ctx.restore();
+        return;
+      }
+
+      /* プレイ中のみプレイエリア用の半透明パネル */
+      if (state === "playing") {
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.fillRect(OFFSET_X, 0, COLS * SIZE, MAIN_H);
+      }
+
+      for (let y = 0; y < ROWS + 1; y++) {
+        for (let x = 0; x < COLS; x++) {
+          let gy = y + Math.floor(cameraY);
+
+          if (gy >= 0 && gy < TOTAL_ROWS && grid[gy][x] && grid[gy][x] !== 9) {
+            let cell = grid[gy][x];
+            let isBomb = (typeof cell === 'object' && cell.type === 'bomb');
+            let color = isBomb ? null : (typeof cell === 'object' ? COLORS[cell.color] : COLORS[cell]);
+            let offsetY = (typeof cell === 'object' && cell.renderOffsetY) ? cell.renderOffsetY * SIZE : 0;
+            let px = x * SIZE + OFFSET_X;
+            let py = screenY(gy) + offsetY;
+
+            if (isBomb) {
+              drawBomb(px, py, cell.timer, cell.state === 'cracking' ? cell.crackTimer : null);
+            } else {
+              drawBlockCell(px, py, color, cell.state === 'cracking' ? cell.timer : null);
+            }
+          }
+        }
+      }
+
+      drawHumans();
+
+      if (state === "playing") {
+        fallingBombs.forEach(b => {
+          if (b.y >= cameraY - 2 && b.y <= cameraY + ROWS + 1) {
+            drawBomb(b.x * SIZE + OFFSET_X, screenY(b.y), b.timer);
+          }
+        });
+      }
+
+      if (state !== "clear") {
+        ctx.fillStyle = GROUND;
+        ctx.fillRect(0, screenY(TOTAL_ROWS - 1), TOTAL_W, SIZE);
+      }
+
+      const wy = screenY(waterWorldY());
+      const waterBaseY = wy;
+      const waterPhase = elapsed * WATER_WAVE_SPEED;
+
+      ctx.fillStyle = WATER_COLOR;
+      ctx.beginPath();
+      ctx.moveTo(0, MAIN_H);
+      ctx.lineTo(0, waterBaseY);
+      for (let x = 0; x <= TOTAL_W; x += 8) {
+        const wave = Math.sin((x / WATER_WAVE_LEN) + waterPhase) * WATER_WAVE_AMP;
+        ctx.lineTo(x, waterBaseY + wave);
+      }
+      ctx.lineTo(TOTAL_W, MAIN_H);
+      ctx.closePath();
+      ctx.fill();
+
+      if (state === "playing") {
+        ctx.strokeStyle = WATER_LINE;
+        ctx.beginPath();
+        for (let x = 0; x <= TOTAL_W; x += 6) {
+          const wave = Math.sin((x / WATER_WAVE_LEN) + waterPhase) * WATER_WAVE_AMP;
+          if (x === 0) ctx.moveTo(x, waterBaseY + wave);
+          else ctx.lineTo(x, waterBaseY + wave);
+        }
+        ctx.stroke();
+
+        ctx.font = "10px sans-serif";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.fillStyle = WATER_LINE;
+        ctx.strokeText("水位", 15, waterBaseY - 15);
+        ctx.fillText("水位", 15, waterBaseY - 15);
+        ctx.strokeText(waterMeters() + "m", 18, waterBaseY - 2);
+        ctx.fillText(waterMeters() + "m", 18, waterBaseY - 2);
+
+        const goalWorldY = (TOTAL_ROWS - 1) - (GOAL_METERS / METERS_PER_ROW);
+        const gy = screenY(goalWorldY);
+
+        ctx.strokeStyle = GOAL_LINE;
+        ctx.beginPath();
+        ctx.moveTo(OFFSET_X - 60, gy);
+        ctx.lineTo(OFFSET_X + COLS * SIZE, gy);
+        ctx.stroke();
+
+        ctx.font = "10px sans-serif";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.fillStyle = GOAL_LINE;
+        ctx.strokeText("ゴール", 15, gy - 15);
+        ctx.fillText("ゴール", 15, gy - 15);
+        ctx.strokeText(GOAL_METERS + "m", 18, gy - 2);
+        ctx.fillText(GOAL_METERS + "m", 18, gy - 2);
+
+        // 0m時に安全ラインが地面下へ落ちないよう、地面上端でクランプ
+        const safeBoundaryY = Math.min(TOTAL_ROWS - 1, safeLine + 1);
+        let sly = screenY(safeBoundaryY);
+
+        ctx.strokeStyle = SAFE_LINE;
+        ctx.beginPath();
+        ctx.moveTo(OFFSET_X - 60, sly);
+        ctx.lineTo(OFFSET_X + COLS * SIZE, sly);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(OFFSET_X, 0);
+        ctx.lineTo(OFFSET_X, 480);
+        ctx.moveTo(OFFSET_X + COLS * SIZE, 0);
+        ctx.lineTo(OFFSET_X + COLS * SIZE, 480);
+        ctx.stroke();
+
+        ctx.font = "10px sans-serif";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.fillStyle = SAFE_LINE;
+        ctx.strokeText("安全高度", 10, sly - 15);
+        ctx.fillText("安全高度", 10, sly - 15);
+        ctx.strokeText(heightMeters() + "m", 15, sly - 2);
+        ctx.fillText(heightMeters() + "m", 15, sly - 2);
+      }
+
+      if (state === "playing" && pair) {
+        renderBlocks(pair).forEach(b => {
+          drawBlockCell(b.x * SIZE + OFFSET_X, screenY(b.y), COLORS[b.c]);
+        });
+      }
+
+      /* 限界高度の警告（中央・黄色・5秒） */
+      if (state === "playing" && floodPhase === "none" && elapsed < limitWarningUntil) {
+        ctx.save();
+        ctx.font = "18px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const cx = OFFSET_X + (COLS * SIZE) / 2, cy = 240;
+        const lh = 22;
+        const totalH = (LIMIT_WARNING_LINES.length - 1) * lh;
+        LIMIT_WARNING_LINES.forEach((line, i) => {
+          const y = cy - totalH / 2 + i * lh;
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = "rgba(0,0,0,0.85)";
+          ctx.strokeText(line, cx, y);
+          ctx.fillStyle = "#ffeb3b";
+          ctx.fillText(line, cx, y);
+        });
+        ctx.restore();
+      }
+
+      /* 水位超過：警告→猶予カウントダウン */
+      if (state === "playing" && floodPhase !== "none") {
+        const cx = OFFSET_X + (COLS * SIZE) / 2;
+        const cy = 240;
+
+        const showBlink = (() => {
+          if (floodPhase !== "blink") return false;
+          const t = elapsed - floodBlinkStart;
+          const step = Math.floor(t / FLOOD_BLINK_PERIOD);
+          // on/off を繰り返して「3回明滅」
+          return (step % 2) === 0;
+        })();
+
+        if (floodPhase === "blink" && showBlink) {
+          ctx.save();
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          // 枠（アラートっぽく）
+          ctx.strokeStyle = "rgba(255,0,0,0.95)";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(OFFSET_X + 6, 150, COLS * SIZE - 12, 180);
+
+          ctx.fillStyle = "#ff3b3b";
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = "rgba(0,0,0,0.9)";
+
+          ctx.font = "28px sans-serif";
+          ctx.strokeText("!!! CAUTION !!!", cx, 185);
+          ctx.fillText("!!! CAUTION !!!", cx, 185);
+
+          ctx.font = "18px sans-serif";
+          ctx.strokeText("水位が安全高度を越えました！", cx, 230);
+          ctx.fillText("水位が安全高度を越えました！", cx, 230);
+          ctx.strokeText("速やかに脱出してください！", cx, 260);
+          ctx.fillText("速やかに脱出してください！", cx, 260);
+
+          ctx.restore();
+        }
+
+        if (floodPhase === "countdown") {
+          const remain = Math.max(0, floodCountdownEnd - elapsed);
+          ctx.save();
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          ctx.strokeStyle = "rgba(255,0,0,0.95)";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(OFFSET_X + 6, 160, COLS * SIZE - 12, 160);
+
+          ctx.fillStyle = "#ff3b3b";
+          ctx.lineWidth = 6;
+          ctx.strokeStyle = "rgba(0,0,0,0.9)";
+
+          ctx.font = "18px sans-serif";
+          ctx.strokeText("世界沈没まであと", cx, 205);
+          ctx.fillText("世界沈没まであと", cx, 205);
+
+          ctx.font = "46px sans-serif";
+          const tText = remain.toFixed(1) + "秒";
+          ctx.strokeText(tText, cx, 255);
+          ctx.fillText(tText, cx, 255);
+
+          ctx.restore();
+        }
+      }
+
+      /* 水没までタイマー（右上） */
+      if (state === "playing") {
+        const t = Math.max(0, timeToFloodSec());
+        ctx.save();
+        const tx = 5;
+        const ty = 6;
+        const tw = OFFSET_X - 10;
+        const th = 48;
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillRect(tx, ty, tw, th);
+
+        const rightX = tx + tw - 5;
+        ctx.textAlign = "left";
+        ctx.fillStyle = "#fff";
+        ctx.font = "12px sans-serif";
+        ctx.fillText("水没まで", tx, 18);
+
+        ctx.textAlign = "right";
+        ctx.font = "22px sans-serif";
+        const secText = "秒";
+        const gap = 6;
+        ctx.font = "12px sans-serif";
+        const secW = ctx.measureText(secText).width;
+        ctx.fillText(secText, rightX, 44);
+
+        ctx.font = "22px sans-serif";
+        ctx.fillText(t.toFixed(1), rightX - secW - gap, 44);
+        ctx.restore();
+      }
+
+      drawParticles();
+
+      if (state === "clear") {
+        const t = Math.max(0, elapsed - clearStart);
+        const p = Math.min(1, t / 2.4);
+        const ease = 1 - Math.pow(1 - p, 3);
+        const cx = OFFSET_X + (COLS * SIZE) / 2;
+        const startY = 560;
+        const targetY = 230;
+        const y = startY + (targetY - startY) * ease;
+
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        ctx.fillStyle = "#fff";
+
+        ctx.font = "52px sans-serif";
+        ctx.strokeText("GOOL!!", cx, y - 35);
+        ctx.fillText("GOOL!!", cx, y - 35);
+
+        ctx.font = "28px sans-serif";
+        ctx.strokeText("congratulations！", cx, y + 30);
+        ctx.fillText("congratulations！", cx, y + 30);
+
+        if (p >= 1) {
+          const blink = (Math.floor(t * 2) % 2) === 0;
+          if (blink) {
+            ctx.font = "18px sans-serif";
+            ctx.strokeText("PUSH SPACE KEY", cx, y + 95);
+            ctx.fillText("PUSH SPACE KEY", cx, y + 95);
+          }
+        }
+        drawCelebrationEffects();
+        ctx.restore();
+      }
+
+      if (state === "gameover") {
+        const t = Math.max(0, elapsed - gameoverStart);
+        const cx = OFFSET_X + (COLS * SIZE) / 2;
+        const targetY = 240;
+        const startY = -120;
+        const p = Math.min(1, t / GAMEOVER_FALL_SEC);
+        const ease = 1 - Math.pow(1 - p, 3);
+        const y = startY + (targetY - startY) * ease;
+
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        ctx.fillStyle = "#fff";
+
+        ctx.font = "34px sans-serif";
+        ctx.strokeText("GAME OVER", cx, y - 40);
+        ctx.fillText("GAME OVER", cx, y - 40);
+
+        ctx.font = "54px sans-serif";
+        ctx.strokeText("世  界  沈  没", cx, y + 20);
+        ctx.fillText("世  界  沈  没", cx, y + 20);
+
+        if (p >= 1) {
+          const blink = (Math.floor(t * 2) % 2) === 0;
+          if (blink) {
+            ctx.font = "18px sans-serif";
+            ctx.strokeText("PUSH SPACE KEY", cx, y + 95);
+            ctx.fillText("PUSH SPACE KEY", cx, y + 95);
+          }
+        }
+
+        ctx.restore();
+      }
+    }
+
+    function drawMainWorldOverlayOnRadar() {
+      // メイン側の水位を全幅に描画するため、レーダー側の補助地面描画は行わない
+    }
+
+    /* ===== radar ===== */
+    function drawRadar() {
+      const rctx = ctx;
+      const radarWidth = RADAR_CANVAS_W;
+      const radarHeight = RADAR_CANVAS_H;
+      rctx.save();
+      rctx.translate(RADAR_X, 0);
+
+      if (state === "title" || state === "intro") {
+        rctx.restore();
+        return;
+      }
+
+      if (state === "gameover") {
+        drawMainWorldOverlayOnRadar();
+        rctx.restore();
+        return;
+      }
+
+      const goalLabel = `ゴール ${GOAL_METERS}m`;
+      const safeLabel = `安全 ${heightMeters()}m`;
+      const waterLabel = `水位 ${waterMeters()}m`;
+
+      /* 文字幅に合わせてレーダー幅を最小化 */
+      rctx.save();
+      rctx.font = "11px sans-serif";
+      const labelW = Math.ceil(Math.max(
+        rctx.measureText(goalLabel).width,
+        rctx.measureText(safeLabel).width,
+        rctx.measureText(waterLabel).width
+      ));
+      rctx.restore();
+
+      const sx = RADAR_INNER_W / COLS;
+      const rx0 = RADAR_PAD;
+      const labelX = rx0 + RADAR_INNER_W + 8;
+      const desiredW = Math.ceil(labelX + labelW + 6);
+
+      drawMainWorldOverlayOnRadar();
+
+      const innerTop = RADAR_V_PAD;
+      const innerBottom = radarHeight - RADAR_V_PAD;
+      const innerH = Math.max(1, innerBottom - innerTop);
+
+      /* レーダー背景の半透明板は内側だけ */
+      rctx.fillStyle = "rgba(0,0,0,0.35)";
+      rctx.fillRect(rx0, innerTop, RADAR_INNER_W, innerH);
+
+      rctx.strokeStyle = "#888";
+      rctx.strokeRect(rx0, innerTop, RADAR_INNER_W, innerH);
+
+      for (let y = 0; y < TOTAL_ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (grid[y][x]) {
+            if (grid[y][x] === 9) continue; // 地面は専用ラインで描く
+            const m = (TOTAL_ROWS - y - 1) * METERS_PER_ROW;
+            if (m < 0 || m > GOAL_METERS) continue;
+
+            const ry = radarYByMeters(m);
+            const rh = Math.max(1, innerH / GOAL_METERS * METERS_PER_ROW);
+
+            if (typeof grid[y][x] === 'object' && grid[y][x].type === 'bomb') {
+              const isFlashing = (grid[y][x].timer <= 5 && (Math.floor(elapsed * 4) % 2) === 0);
+              rctx.fillStyle = isFlashing ? "#ff0000" : "#555555";
+            } else {
+              let c = (typeof grid[y][x] === 'object') ? grid[y][x].color : grid[y][x];
+              rctx.fillStyle = COLORS[c];
+            }
+            rctx.fillRect(rx0 + x * sx, ry, sx, rh);
+          }
+        }
+      }
+
+      fallingBombs.forEach(b => {
+        const m = (TOTAL_ROWS - b.y - 1) * METERS_PER_ROW;
+        if (m >= 0 && m <= GOAL_METERS) {
+          const ry = radarYByMeters(m);
+          const rh = Math.max(1, innerH / GOAL_METERS * METERS_PER_ROW);
+          rctx.fillStyle = "#333333";
+          rctx.fillRect(rx0 + b.x * sx, ry, sx, rh);
+        }
+      });
+
+      const goalY = radarYByMeters(GOAL_METERS);
+      const safeY = radarYByMeters(heightMeters());
+      const waterY = radarYByMeters(waterMeters());
+      const goalYAdj = Math.max(goalY, RADAR_GOAL_LABEL_TOP);
+
+      const lineOut = Math.max(0, desiredW - (rx0 + RADAR_INNER_W));
+
+      /* レーダー内は、水位から地面までを単色で塗る（波なし） */
+      rctx.fillStyle = WATER_COLOR;
+      rctx.fillRect(rx0, waterY, RADAR_INNER_W, Math.max(0, innerBottom - waterY));
+
+      function radarLine(y, color) {
+        rctx.strokeStyle = color;
+        rctx.beginPath();
+        rctx.moveTo(rx0, y);
+        rctx.lineTo(rx0 + RADAR_INNER_W + lineOut, y);
+        rctx.stroke();
+      }
+
+      radarLine(goalYAdj, GOAL_LINE);
+      radarLine(safeY, SAFE_LINE);
+      radarLine(waterY, WATER_LINE);
+
+      /* ラベル（canvas上に描画） */
+      rctx.save();
+      rctx.font = "11px sans-serif";
+      rctx.textBaseline = "bottom";
+      rctx.textAlign = "right";
+      const labelRightX = Math.min(radarWidth, desiredW) - RADAR_LABEL_PAD_R;
+
+      rctx.fillStyle = GOAL_LINE;
+      rctx.fillText(goalLabel, labelRightX, goalYAdj - 2);
+
+      rctx.fillStyle = SAFE_LINE;
+      rctx.fillText(safeLabel, labelRightX, safeY - 2);
+
+      rctx.fillStyle = WATER_LINE;
+      rctx.fillText(waterLabel, labelRightX, waterY - 2);
+      rctx.restore();
+
+      /* メイン画面の表示範囲（カメラ）をレーダーで枠表示 */
+      const camTopMeters = (TOTAL_ROWS - (cameraY) - 1) * METERS_PER_ROW;
+      const camBottomMeters = (TOTAL_ROWS - (cameraY + ROWS) - 1) * METERS_PER_ROW;
+      const camY1 = radarYByMeters(camTopMeters);
+      const camY2 = radarYByMeters(camBottomMeters);
+      const viewTop = Math.max(innerTop, Math.min(innerBottom, Math.min(camY1, camY2)));
+      const viewBottom = Math.max(innerTop, Math.min(innerBottom, Math.max(camY1, camY2)));
+
+      rctx.save();
+      const viewOut = 10;
+      const viewX = rx0 - viewOut;
+      const viewW = RADAR_INNER_W + viewOut * 2;
+      rctx.fillStyle = "rgba(255,255,255,0.06)";
+      rctx.strokeStyle = "rgba(255,255,255,0.75)";
+      rctx.lineWidth = 1;
+      rctx.fillRect(viewX, viewTop, viewW, Math.max(1, viewBottom - viewTop));
+      rctx.strokeRect(viewX + 0.5, viewTop + 0.5, viewW - 1, Math.max(1, viewBottom - viewTop) - 1);
+      rctx.restore();
+      rctx.restore();
+    }
+
+    /* ===== 入力 ===== */
+    document.addEventListener("keydown", e => {
+      if (state === "title") {
+        if (e.code !== "Space") return;
+        if (!spaceReleased) return;
+        state = "intro";
+        elapsed = 0;
+        spaceReleased = false;
+        return;
+      }
+
+      if (state === "intro") {
+        if (e.code !== "Space") return;
+        if (!spaceReleased) return;
+        resetGame();
+        state = "playing";
+        spaceReleased = false;
+        return;
+      }
+
+      if ((state === "clear" || state === "gameover")) {
+        if (e.code !== "Space") return;
+        if (!spaceReleased) return;
+        state = "title";
+        elapsed = 0;
+        spaceReleased = false;
+        return;
+      }
+
+      if (e.code === "Space") {
+        spaceReleased = false;
+        return;
+      }
+
+      if (state !== "playing") return;
+      if (!pair) return;
+
+      if (e.key === "ArrowLeft") {
+        pair.x--;
+        if (hit(blocks(pair))) pair.x++;
+      }
+
+      if (e.key === "ArrowRight") {
+        pair.x++;
+        if (hit(blocks(pair))) pair.x--;
+      }
+
+      if (e.key === "ArrowUp") {
+        const prevRot = pair.rot;
+        const prevX = pair.x;
+
+        pair.rot = (pair.rot + 1) % 4;
+
+        if (hit(blocks(pair))) {
+          // 簡易ウォールキック（壁際・詰まり時に横へ逃がして回転を成立させる）
+          const kicks = [-1, 1, -2, 2];
+          let ok = false;
+          for (const dx of kicks) {
+            pair.x = prevX + dx;
+            if (!hit(blocks(pair))) {
+              ok = true;
+              break;
+            }
+          }
+          if (!ok) {
+            pair.rot = prevRot;
+            pair.x = prevX;
+          }
+        }
+      }
+
+      if (e.key === "ArrowDown") fast = true;
+    });
+
+    document.addEventListener("keyup", e => {
+      if (e.code === "Space") spaceReleased = true;
+      if (e.key === "ArrowDown") fast = false;
+    });
+
+    /* ===== loop ===== */
+    let last = 0;
+
+    function loop(t = 0) {
+      let dt = (t - last) / 1000;
+      last = t;
+
+      update(dt);
+      if (!isCautionPause()) updateParticles();
+      draw();
+      drawRadar();
+
+      requestAnimationFrame(loop);
+    }
+
+/* ===== Human (NPC) 最小実装 ===== */
+
+const HUMAN_DOT = "●";
+const HUMAN_COLOR = "#111111";
+const HUMAN_SWEAT_COLOR = "#66d9ff";
+const HUMAN_WALK_PROB = 0.02; // 毎フレーム歩きに移る確率（調整可）
+const HUMAN_IDLE_PROB = 0.01; // 毎フレーム止まる確率
+const HUMAN_STEP_INTERVAL = 0.6; // 歩行で1歩進むまでの秒数（擬似）
+const HUMAN_CLIMB_SEC = 0.9; // 1ブロック登るのにかかる秒数
+const HUMAN_WOBBLE_AMPL = 0.18; // 登攀時の左右揺れ（セル幅の割合）
+
+let humans = []; // {id, x, y, state, stepTimer, actionTimer, dir, importance, rescued, animOffset}
+
+/* 初期人間配置（resetGame から呼ぶか resetGame 内で設定） */
+function createInitialHumans() {
+  humans.length = 0;
+  // 例: 3人を底付近に配置（TOTAL_ROWS が大きいので下の方に）
+  humans.push({ id: 1, x: 1, y: TOTAL_ROWS - 3, state: 'idle', stepTimer: 0, actionTimer: 0, dir: 1, importance: 1, rescued: false, animOffset: Math.random() * Math.PI * 2 });
+  humans.push({ id: 2, x: 3, y: TOTAL_ROWS - 4, state: 'idle', stepTimer: 0, actionTimer: 0, dir: -1, importance: 1, rescued: false, animOffset: Math.random() * Math.PI * 2 });
+  humans.push({ id: 3, x: 4, y: TOTAL_ROWS - 6, state: 'idle', stepTimer: 0, actionTimer: 0, dir: 1, importance: 1, rescued: false, animOffset: Math.random() * Math.PI * 2 });
+}
+
+/* ヘルパー: 指定座標がブロックで埋まっているか */
+function isCellSolid(x, y) {
+  if (y < 0 || y >= TOTAL_ROWS || x < 0 || x >= COLS) return false;
+  return !!grid[y][x] && grid[y][x] !== 9;
+}
+
+/* ヘルパー: 上に登れるか（上が空で、現在位置に登れる足場があること） */
+function canClimbAbove(h) {
+  const aboveY = h.y - 1;
+  if (aboveY < 0) return false;
+  // 上が空で、現在位置の上に登れるブロック（つまり上に空間がある）
+  if (isCellSolid(h.x, aboveY)) return false;
+  // 足場があれば登る（ここは簡易：現在位置にブロックがあれば登れる）
+  return isCellSolid(h.x, h.y);
+}
+
+/* ヘルパー: 人間が水に落ちているか（頭が水位以下か） */
+function isHumanInWater(h) {
+  // 人間の頭はその行の上端とみなす（y 行のセルの上に立っている）
+  // waterWorldY() は TOTAL_ROWS - 1 - water を返す（浮動小数）
+  const headWorldY = h.y - 0.0; // 人間の頭位置（行インデックス）
+  const waterY = waterWorldY(); // 小数行位置
+  // 「水に落ちたら即溺れる」仕様なので、頭が水面より下なら死亡
+  return headWorldY >= waterY;
+}
+
+    /* 人間更新ルーチン（update(dt) 内で呼ぶ） */
+    function updateHumans(dt) {
+      for (const h of humans) {
+        if (h.state === 'dead' || h.rescued) continue;
+
+        // 即溺死判定（仕様どおり：水に落ちたら即死）
+        if (isHumanInWater(h)) {
+          h.state = 'dead';
+          continue;
+        }
+
+        // 落下判定（下が空なら落ちる）
+        if (!isCellSolid(h.x, h.y + 1) && h.y < TOTAL_ROWS - 1) {
+          h.state = 'fall';
+          // 落下は1行ずつ即座に落とす（死なない仕様）
+          h.y += 1;
+          h.stepTimer = 0;
+          continue;
+        }
+
+        // 行動遷移（簡易確率ベース）
+        if (h.state === 'idle') {
+          // ランダムで歩きに移る
+          if (Math.random() < HUMAN_WALK_PROB) {
+            h.state = 'walk';
+            h.stepTimer = 0;
+            // ランダム方向（壁なら反転）
+            h.dir = (Math.random() < 0.5) ? -1 : 1;
+            if (h.x + h.dir < 0 || h.x + h.dir >= COLS) h.dir *= -1;
+          } else if (canClimbAbove(h) && Math.random() < 0.35) {
+            // 時々登る（確率で登攀を選択）
+            h.state = 'climb';
+            h.actionTimer = 0;
+          }
+        } else if (h.state === 'walk') {
+          h.stepTimer += dt;
+          // 歩行アニメの一歩ごとに x を進める（擬似）
+          if (h.stepTimer >= HUMAN_STEP_INTERVAL) {
+            h.stepTimer = 0;
+            const nx = h.x + h.dir;
+            if (nx >= 0 && nx < COLS && !isCellSolid(nx, h.y)) {
+              h.x = nx;
+            } else {
+              // 壁やブロックがあれば止まる
+              h.state = 'idle';
+            }
+          }
+          // 歩行中に上が登れるなら登る確率を少し上げる
+          if (canClimbAbove(h) && Math.random() < 0.12) {
+            h.state = 'climb';
+            h.actionTimer = 0;
+          } else if (Math.random() < HUMAN_IDLE_PROB) {
+            h.state = 'idle';
+          }
+        } else if (h.state === 'climb') {
+          h.actionTimer += dt;
+          if (h.actionTimer >= HUMAN_CLIMB_SEC) {
+            // 1ブロック分上がる
+            h.y = Math.max(0, h.y - 1);
+            h.actionTimer = 0;
+            // 登り終えたら一旦 idle に戻す
+            h.state = 'idle';
+          }
+        } else if (h.state === 'fall') {
+          // fall は上で処理済み（落下1行で着地判定は次フレーム）
+          if (isCellSolid(h.x, h.y + 1) || h.y >= TOTAL_ROWS - 1) {
+            h.state = 'idle';
+          }
+        }
+      }
+    }
+
+    /* 人間描画ルーチン（draw() 内で呼ぶ） */
+    function drawHumans() {
+      ctx.save();
+      ctx.font = `${SIZE * 0.9}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      for (const h of humans) {
+        const px = h.x * SIZE + OFFSET_X + SIZE / 2;
+        const pyBase = screenY(h.y);
+        // アニメ：歩行は上下にぴょこぴょこ、登攀は左右に少し揺れる
+        let animY = 0;
+        let animX = 0;
+        if (h.state === 'walk') {
+          animY = Math.sin((elapsed + h.animOffset) * 12) * (SIZE * 0.08);
+        } else if (h.state === 'climb') {
+          animX = Math.sin((elapsed + h.animOffset) * 10) * (SIZE * HUMAN_WOBBLE_AMPL);
+          // 汗（小さな水色の点）を頭上に表示
+          ctx.fillStyle = HUMAN_SWEAT_COLOR;
+          const sweatCount = 2;
+          for (let i = 0; i < sweatCount; i++) {
+            const sx = px + (i - (sweatCount - 1) / 2) * 6;
+            const sy = pyBase - SIZE * 0.6 + Math.sin(elapsed * 10 + i) * 2 - (h.actionTimer / HUMAN_CLIMB_SEC) * 6;
+            ctx.fillText(".", sx, sy);
+          }
+        } else if (h.state === 'fall') {
+          animY = Math.sin((elapsed + h.animOffset) * 20) * (SIZE * 0.04);
+        }
+
+        // 死亡は薄い赤で表示
+        if (h.state === 'dead') {
+          ctx.fillStyle = "#aa0000";
+          ctx.fillText(HUMAN_DOT, px + animX, pyBase + animY);
+          continue;
+        }
+
+        // 救助済は緑
+        if (h.rescued) {
+          ctx.fillStyle = "#66e066";
+          ctx.fillText(HUMAN_DOT, px + animX, pyBase + animY);
+          continue;
+        }
+
+        // 通常は黒
+        ctx.fillStyle = HUMAN_COLOR;
+        ctx.fillText(HUMAN_DOT, px + animX, pyBase + animY);
+      }
+
+      ctx.restore();
+    }
+
+    loop();
+
+  </script>
+</body>
+
+</html>

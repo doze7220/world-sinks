@@ -1,0 +1,297 @@
+// =========================
+// CONSTANTS
+// =========================
+
+// =========================
+// TUNING (バランス調整値)
+// =========================
+
+// WATER (波・色)
+export const BASE_WAVE_AMPLITUDE = 8;
+export const DANGER_WAVE_AMPLITUDE = 10;
+export const WAVE_PERIOD_1 = 2.5; // 秒
+export const WAVE_PERIOD_2 = 1.3; // 秒
+// export const WAVE_RANDOM_FACTOR = 0.1; // ±10%
+
+export const WATER_TOP_COLOR = "#4FC3F7";
+export const WATER_MID_COLOR = "#2A7FBF";
+export const WATER_BOTTOM_COLOR = "#0A1A2A";
+export const WATER_HIGHLIGHT_COLOR = "#FFFFFF";
+export const WATER_HIGHLIGHT_THICKNESS = 3;
+
+// DANGER (危機判定・距離・時間)
+export const DANGER_PROXIMITY_BLOCKS = 3; // 3ブロック以内で予兆発生
+export const DANGER_COUNTDOWN_SECONDS = 10.0;
+export const PROXIMITY_BRIGHTNESS_DROP = 0.9; // 明度90%
+
+// EFFECT (雷・振動・演出)
+export const SHAKE_INTENSITY_PHASE3 = 2;
+export const SHAKE_INTENSITY_PHASE4 = 5;
+export const SHAKE_PERIOD_PHASE3 = 0.1;
+export const SHAKE_PERIOD_PHASE4 = 0.08;
+
+export const THUNDER_INTERVAL_PHASE3 = 2.5;
+export const THUNDER_INTERVAL_PHASE4 = 1.0;
+export const THUNDER_FLASH_DURATION = 0.1;
+
+// RAIN (雨量)
+export const RAIN_COUNT_BASE = 50;
+export const RAIN_MULTIPLIER_PHASE1 = 1.0;
+export const RAIN_MULTIPLIER_PHASE2 = 1.5;
+export const RAIN_MULTIPLIER_PHASE3 = 2.0;
+export const RAIN_MULTIPLIER_PHASE4 = 2.5;
+
+// =========================
+// CONFIG (設定値)
+// =========================
+
+// UI (カウントダウン・色・スケール)
+export const UI_COUNTDOWN_X = 65;
+export const UI_COUNTDOWN_Y = 20;
+export const UI_COUNTDOWN_NORMAL_COLOR = "#FFFFFF";
+export const UI_COUNTDOWN_DANGER_COLOR = "#FF3B3B";
+export const UI_COUNTDOWN_SCALE_MIN = 1.0;
+export const UI_COUNTDOWN_SCALE_MAX = 1.1;
+export const UI_COUNTDOWN_ANIM_PERIOD = 1.0;
+export const UI_COUNTDOWN_TEXT_OUTLINE_WIDTH = 4;
+export const UI_COUNTDOWN_TEXT_OUTLINE_COLOR = "rgba(0,0,0,0.85)";
+export const UI_COUNTDOWN_FONT = "bold 20px sans-serif";
+export const UI_COUNTDOWN_CENTER_OFFSET_X = 80;
+export const UI_COUNTDOWN_CENTER_OFFSET_Y = 15;
+
+export const UI_CAUTION_TEXT = "CAUTION!";
+export const UI_CAUTION_COLOR = "#FF3B3B";
+export const UI_CAUTION_STOKE_COLOR = "#FFFFFF";
+export const UI_CAUTION_STOKE_WIDTH = 4; // 2px border on each side = 4
+export const UI_CAUTION_FONT = "bold 48px sans-serif";
+export const UI_SIDE_LINE_WIDTH = 4;
+export const UI_SIDE_LINE_COLOR = "#FFFFFF";
+
+export const UI_CAUTION_ANIM_DURATION = 0.8;
+export const UI_CAUTION_FADE_OUT_DURATION = 0.25;
+
+export const LIMIT_WARNING_LINES = [
+    "地面は安全高度から",
+    "6ブロック上までしか",
+    "積めません！"
+];
+export const SAFE_LINE_LERP = 0.15;
+
+// RADAR (線・透明度・枠)
+export const RADAR_LINE_WIDTH = 3;
+export const RADAR_VIEW_BOX_COLOR = "rgba(255, 255, 255, 0.25)";
+export const RADAR_VIEW_BOX_BORDER_COLOR = "#FFFFFF";
+// export const RADAR_VIEW_BOX_BORDER_WIDTH = 2;
+// export const RADAR_VIEW_BOX_V_LINE_WIDTH = 1;
+
+// =========================
+// LEGACY / SYSTEM CONSTANTS
+// =========================
+
+/* ===== 爆弾パラメータ ===== */
+export const BOMB_TIMER_MIN = 10;
+export const BOMB_TIMER_MAX = 30;
+export const BOMB_START_METERS = 0;
+export const BOMB_PROB_STEP_METERS = 10;
+export const BOMB_PROB_STEP_PERCENT = 50;
+export const BOMB_PROB_MAX_PERCENT = 10;
+export const BOMB_CHECK_INTERVAL = 5;
+export const BOMB_FALL_SPEED = 3; //1秒間に進むブロック数（落下速度）
+
+/* ===== ブロック設定 ===== */
+export const BLOCK_TYPES = 4;
+export const RANDOM_SHAPE = true;
+export const BLOCK_SHAPE_SIZE = 2;
+
+/* ===== フィールド設定 ===== */
+export const COLS = 6;
+export const ROWS = 12;
+export const TOTAL_ROWS = 200;
+export const SIZE = 40;
+
+/* ===== 表示・カメラ設定 ===== */
+export const LEFT_UI_WIDTH = 70;
+export const OFFSET_X = LEFT_UI_WIDTH;
+export const CAMERA_LERP = 0.05;
+export const SAFE_LINE_SCREEN_Y = ROWS - 3;
+
+/* ===== 操作・スピード設定 ===== */
+export const FALL = 0.6;
+export const FAST = 0.05;
+export const WATER_SPEED = 0.15;
+export const WATER_START_DELAY = 0;
+export const WATER_START_METERS = -10;
+export const PAIR_MOVE_LERP = 0.28;
+export const PAIR_FALL_LERP = 0.18;
+export const PAIR_ROT_LERP = 0.25;
+
+/* ===== 高度制限設定 ===== */
+export const LIMIT_HEIGHT = 6;
+
+/* ===== 高度・ゴール設定 ===== */
+export const METERS_PER_ROW = 10;
+export const GOAL_METERS = 200;
+
+/* ===== アニメーション設定 ===== */
+export const ANIM_GLOW_SEC = 0.5;
+export const ANIM_CRACK_SEC = 1.0;
+export const ANIM_TOTAL_SEC = ANIM_GLOW_SEC + ANIM_CRACK_SEC;
+export const ANIM_FALL_DELAY = 0.1;
+export const ANIM_FALL_SPEED = 20.0;
+
+/* ===== エフェクト設定 ===== */
+export const PARTICLE_DIV = 4;
+export const PARTICLE_SIZE = SIZE / PARTICLE_DIV;
+export const PARTICLE_LIFE = 55;
+export const PARTICLE_SPEED = 0.055;
+export const PARTICLE_GRAVITY = 0.006;
+export const PARTICLE_FRICTION = 0.985;
+
+/* ===== システム設定 ===== */
+export const MAX_CASCADE_STEPS = 200;
+
+/* ===== 色・スタイル設定 ===== */
+/* ===== ブロック特性定義 ===== */
+/* ===== ブロック特性定義 ===== */
+// IDはCOLORSのインデックスに対応: 1=Red, 2=Green, 3=Blue, 4=Yellow, 5=Pink, 6=Grey, 9=Bomb
+export const BLOCK_PROPERTIES = {
+    1: { weight: 1, hardness: 1, canClimb: 0, breakable: 1 }, // 赤(1)は登れない
+    2: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+    3: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+    4: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+    5: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+    6: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+    9: { weight: 1, hardness: 1, canClimb: 0, breakable: 1 }  // 爆弾も登れない
+};
+
+export const COLORS = [null, "#f55", "#5f5", "#55f", "#ff5", "#f5f"];
+export const GROUND = "#6b4a2b";
+// export const WATER_COLOR = "rgba(65,165,245,0.56)";
+export const WATER_LINE = "#66d9ff";
+export const GOAL_LINE = "#ffeb3b";
+export const SAFE_LINE = "#fff";
+
+// export const WATER_WAVE_AMP = 4;
+// export const WATER_WAVE_LEN = 140;
+// export const WATER_WAVE_SPEED = 2.2;
+
+export const RADAR_INNER_W = 48;
+export const RADAR_PAD = 10;
+export const RADAR_V_PAD = 12;
+// export const RADAR_GOAL_LABEL_TOP = 15;
+// export const RADAR_LABEL_PAD_R = 4;
+
+/* 背景（空・雲） */
+export const SKY_TOP = "#2c6fff";
+// export const SKY_BOTTOM = "#bfe9ff";
+export const CLOUD_COUNT = 14;
+export const CLOUD_PARALLAX = 0.6;
+export const CLOUD_DRIFT_PX_PER_SEC = 6;
+export const CLOUD_ALPHA = 0.9;
+// export const TEST_EXTEND_WORLD_BG = true;
+
+/* キャンバスサイズ */
+export const MAIN_W = 340;
+export const MAIN_H = 480;
+export const RADAR_CANVAS_W = 190;
+export const RADAR_CANVAS_H = 480;
+export const RADAR_X = MAIN_W;
+export const TOTAL_W = MAIN_W + RADAR_CANVAS_W;
+
+/* 演出設定 */
+export const GAMEOVER_FALL_SEC = 5;
+export const GAMEOVER_WATER_MULT = 10;
+export const GAMEOVER_GRAVITY_STEPS = 6;
+
+// export const FLOOD_BLINKS = 3;
+// export const FLOOD_BLINK_PERIOD = 0.35;
+// export const FLOOD_GRACE_SEC = 10.0;
+export const LIMIT_WARNING_SEC = 5;
+
+/* システム追加 */
+export const FPS_LIMIT = 60;
+export const WATER_ALPHA = 0.8; // 透明度 (0.0 to 1.0)
+
+/* ポーズ設定 */
+export const UI_PAUSE_OVERLAY_COLOR = "rgba(0, 0, 0, 0.5)";
+export const UI_PAUSE_TEXT_COLOR = "#FFFFFF";
+export const UI_PAUSE_BLINK_PERIOD = 1.0;
+export const UI_PAUSE_TEXT = "＜ PAUSE ＞";
+export const UI_PAUSE_FONT = "bold 40px sans-serif";
+
+/* ===== 人間AI設定 ===== */
+export const HUMAN_COUNT_INITIAL = 10;
+export const HUMAN_VIP_COUNT = 1;
+export const HUMAN_RADIUS = 0.26;
+export const HUMAN_LOGICAL_SIZE = 26; // SIZE(40) * 2/3
+
+export const HUMAN_SPEED_WALK = 0.4;
+export const HUMAN_SPEED_CLIMB = 0.2;
+export const HUMAN_SPEED_ESCAPE = 0.7;
+export const HUMAN_SPEED_FAST_CLIMB = 1.25;
+
+export const HUMAN_FALL_OVER_SEC = 2.0;
+export const HUMAN_DROWN_SEC = 5.0;
+export const HUMAN_SPEECH_SEC = 2.5;
+export const HUMAN_LOST_SEC = 10.0; // 10秒登れないと迷子
+export const HUMAN_GOAL_SUBSTATE_SEC = 2.0; // ゴール後の各モーションの持続時間
+
+/* ===== 人間描画・パーツオフセット設定 ===== */
+export const HUMAN_RENDER_CONFIG = {
+    BOUNCE_AMP: 2,     // 歩行時の跳ね
+    SWAY_AMP: 1,       // 登攀時の揺れ
+    FOOT_X_OFF: 6.8,   // 足の体からのX距離
+    FOOT_Y_OFF: -6.5,    // 足のY基本位置
+    HAND_X_OFF: 4,   // 手の体からのX距離
+    HAND_Y_OFF_B: -1.2, // 手のY基本位置(BodyRに対する倍率)
+
+    CLIMB_FOOT_X_OFF: 6.4,  // 登攀時の足のX距離
+    CLIMB_FOOT_Y_OFF: -0.9, // 登攀時の足のY位置(BodyRに対する倍率)
+    CLIMB_HAND_X_OFF: 4.1,  // 登攀時の手のX距離
+    CLIMB_HAND_Y_OFF: -2,   // 登攀時の手のY位置(BodyRに対する倍率)
+
+    BODY_SIZE_RATIO: 2.0,  // 胴体サイズ(BodyRに対する倍率)
+    FOOT_W: 16,            // 足の幅
+    FOOT_H: 8,             // 足の高さ
+    HAND_SIZE: 12,         // 手のサイズ
+    CLIMB_FOOT_W: 12,      // 登攀時の足の幅
+    CLIMB_FOOT_H: 20,      // 登攀時の足の高さ
+
+    SIGMA_OFFSET_X: -10,    // ΣのXオフセット
+    SIGMA_OFFSET_Y: -10,    // ΣのYオフセット
+    SIGMA_ROTATION: 45,     // Σの回転角度(度)
+    SIGMA_SIZE: 14,         // Σの描画サイズ
+    SPEECH_FONT_SIZE: 8,    // セリフのフォントサイズ
+    
+    SWEAT_TEXT: "💦",       // 汗の文字
+    SWEAT_X_OFF: 1.0,       // 汗のXオフセット(BodyRに対する倍率)
+    SWEAT_Y_OFF: -2.0,      // 汗のYオフセット(BodyRに対する倍率)
+    SWEAT_ROTATION: -90,    // 汗の回転角度
+    
+    FALL_FOOT_X_OFF: 4.0,   // 落下時の足のX距離
+    FALL_HAND_X_OFF: 10.0,  // 落下時の手のX距離
+    FELL_OVER_FOOT_X_OFF: 6.0, // 転倒時の足のX距離
+    FELL_OVER_HAND_X_OFF: 6.0, // 転倒時の手のX距離
+};
+export const HUMAN_AI_TICK_MIN = 0.1;
+export const HUMAN_AI_TICK_MAX = 0.3;
+
+export const HUMAN_DANGER_DIST = 2.5; // 少し広めに(2.5ブロック分)
+export const HUMAN_DANGER_WATER_M = 30; // 3ブロック分(30m)
+
+export const SCORE_HUMAN_NORMAL = 100;
+export const SCORE_HUMAN_VIP = 500;
+
+export const HUMAN_SPEECH_DICT = {
+    DANGER: ["助けて！", "HELP!"],
+    FALLING: ["うわあぁ", "落ちるー!!"],
+    DROWNING: ["ぶくぶく…"],
+    LANDED: ["助かった…", "ふぅ"],
+    FELL_OVER: ["痛っ！", "しまった！"],
+    OBSERVE: ["･･･"],
+    FLOOD_NEAR: ["水だー！", "水が来たぞー！", "逃げろー！"],
+    CANT_CLIMB: ["ここは登れない…", "他を回ろう", "上に行くにはどこへ…"],
+    LOST: ["上に行く道はどこだ…", "逃げ道がない…", "助けて…"],
+    FOUND_PATH: ["道だ！", "上に行けるぞ！", "これで助かる！"],
+    GOAL: ["神様ありがとう！", "生き残れた！", "やったーー！！"]
+};
