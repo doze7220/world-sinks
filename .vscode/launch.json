@@ -9,7 +9,7 @@
             "request": "launch",
             "name": "localhost に対して Chrome を起動する",
             //"url": "http://localhost:8080",
-            "url": "D:/document/js_worldsinks/worldsinks.html",
+            "url": "${workspaceFolder}/index.html",
             "webRoot": "${workspaceFolder}"
         }
     ]

@@ -10,7 +10,7 @@ let html = indexHtml.replace(/<script type="module">[\s\S]*?<\/script>/g, '');
 // </body> の前に bundled JS を挿入
 html = html.replace('</body>', `<script>\n${bundleJs}\n</script>\n</body>`);
 
-const outDir = 'd:\\workenish\\js_worldsinks\\artifacts';
+const outDir = path.join(__dirname, 'artifacts');
 if (!fs.existsSync(outDir)) {
   fs.mkdirSync(outDir, { recursive: true });
 }
@@ -21,4 +21,5 @@ const version = vMatch ? vMatch[1] : 'v0.5.0';
 
 const outFile = path.join(outDir, `worldsinks_${version}.html`);
 fs.writeFileSync(outFile, html, 'utf-8');
-console.log('Successfully written to ' + outFile);
+fs.writeFileSync('worldsinks.html', html, 'utf-8');
+console.log('Successfully written to ' + outFile + ' and worldsinks.html');
