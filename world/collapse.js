@@ -6,7 +6,7 @@ import { spawnParticles } from '../core/effects.js'; // あとで作成
 export function forceGravity() {
   for (let x = 0; x < CONST.COLS; x++) {
     for (let y = CONST.TOTAL_ROWS - 2; y >= 0; y--) {
-      if (WORLD.grid[y][x] && WORLD.grid[y][x] !== 9 && !WORLD.grid[y + 1][x]) {
+      if (WORLD.grid[y][x] && WORLD.grid[y][x] !== CONST.BLOCK_TYPE_BOMB && !WORLD.grid[y + 1][x]) {
         WORLD.grid[y + 1][x] = WORLD.grid[y][x];
         WORLD.grid[y][x] = 0;
       }
@@ -22,7 +22,7 @@ export function setupGravity() {
       let cell = WORLD.grid[y][x];
       if (!cell) {
         if (emptyY === -1) emptyY = y;
-      } else if (cell !== 9) {
+      } else if (cell !== CONST.BLOCK_TYPE_BOMB) {
         if (emptyY !== -1) {
           let obj = cell;
           if (typeof obj !== 'object') {
@@ -36,7 +36,7 @@ export function setupGravity() {
           STATE.humans.forEach(h => h.onBlockMove(x, y, emptyY));
           emptyY--;
         }
-      } else if (cell === 9) {
+      } else if (cell === CONST.BLOCK_TYPE_BOMB) {
         emptyY = -1;
       }
     }
@@ -51,7 +51,7 @@ export function applyLimit() {
     let count = 0;
     for (let y = WORLD.safeLine; y >= 0; y--) {
       let cell = WORLD.grid[y][x];
-      if (cell && cell !== 9) {
+      if (cell && cell !== CONST.BLOCK_TYPE_BOMB) {
         count++;
         if (count > CONST.LIMIT_HEIGHT) {
           if (typeof cell === 'object' && cell.state === 'cracking') continue;
@@ -80,7 +80,7 @@ export function flagErase() {
   for (let y = 0; y < CONST.TOTAL_ROWS; y++) {
     for (let x = 0; x < CONST.COLS; x++) {
       let cell = WORLD.grid[y][x];
-      if (!cell || cell === 9 || visited[y][x]) continue;
+      if (!cell || cell === CONST.BLOCK_TYPE_BOMB || visited[y][x]) continue;
       if (typeof cell === 'object' && (cell.type === 'bomb' || cell.state === 'cracking')) continue;
       if (typeof cell === 'object' && cell.renderOffsetY < 0) continue;
 
@@ -115,7 +115,7 @@ export function flagErase() {
         });
       }
 
-      if (group.length >= 4) {
+      if (group.length >= CONST.BLOCK_ERASE_THRESHOLD) {
         group.forEach(([gx, gy]) => blocksToErase.push([gx, gy, color]));
         groupBombs.forEach(b => bombsToErase.add(b));
         erased = true;

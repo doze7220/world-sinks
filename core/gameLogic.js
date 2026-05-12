@@ -6,6 +6,7 @@ import * as BLOCK from '../entities/block.js';
 import * as EFFECTS from '../core/effects.js';
 import * as SCORE from '../ui/score.js';
 import { Human } from '../entities/human.js';
+import { SYSTEM_TEXT as TEXT } from '../ui/text_system.js';
 
 let rowFullTimers = {}; // { y: seconds }
 
@@ -62,9 +63,9 @@ export function updateFloodGrace(dt) {
 
   if (STATE.floodPhase === "countdown") {
     const remain = Math.max(0, STATE.floodCountdownEnd - STATE.elapsed);
-    if (remain > 7.0) STATE.setCurrentPhase(1);
-    else if (remain > 4.0) STATE.setCurrentPhase(2);
-    else if (remain > 2.0) STATE.setCurrentPhase(3);
+    if (remain > CONST.FLOOD_PHASE1_REMAIN) STATE.setCurrentPhase(1);
+    else if (remain > CONST.FLOOD_PHASE2_REMAIN) STATE.setCurrentPhase(2);
+    else if (remain > CONST.FLOOD_PHASE3_REMAIN) STATE.setCurrentPhase(3);
     else STATE.setCurrentPhase(4);
     if (remain <= 0) startGameOver();
   }
@@ -92,12 +93,6 @@ export function update(dt) {
     let speedMult = (STATE.state === "goal_wait") ? 2.5 : 1.0;
     for (let h of STATE.humans) {
       h.update(dt * speedMult);
-      if (h.state === 'drown' && !h.isDead) {
-        h.drownTimer = (h.drownTimer || 0) + dt * speedMult;
-        if (h.drownTimer >= CONST.HUMAN_DROWN_DEATH_SEC) {
-          h.die('drown');
-        }
-      }
       if (h.y <= (WORLD.cameraY + CONST.ROWS + 10) * CONST.SIZE) {
         remaining.push(h);
       }
@@ -116,7 +111,7 @@ export function update(dt) {
   // --- 以降、状態ごとの個別処理 ---
 
   if (STATE.state === "clear") {
-    const clearRiseSec = 2.4;
+    const clearRiseSec = CONST.CLEAR_RISE_SEC;
     if (!STATE.clearCelebrationFired && (STATE.elapsed - STATE.clearStart) >= clearRiseSec) {
       EFFECTS.spawnClearCelebration();
       STATE.setClearCelebrationFired(true);
@@ -130,7 +125,8 @@ export function update(dt) {
     for (let i = 0; i < CONST.GAMEOVER_GRAVITY_STEPS; i++) COLLAPSE.forceGravity();
     if (STATE.elapsed >= CONST.WATER_START_DELAY) {
       WORLD.setWater(WORLD.water + dt * CONST.WATER_SPEED * CONST.GAMEOVER_WATER_MULT);
-      const maxWater = (CONST.TOTAL_ROWS - 1) - WORLD.cameraY;
+      // 画面全体が沈むまで（カメラ上端+余裕分）上昇
+      const maxWater = (CONST.TOTAL_ROWS - WORLD.cameraY) + 2; 
       WORLD.setWater(Math.min(WORLD.water, maxWater));
     }
     return;
@@ -138,7 +134,7 @@ export function update(dt) {
 
   if (STATE.state === "goal_wait") {
     let allReached = true;
-    let goalMeterY = (CONST.TOTAL_ROWS - (CONST.GOAL_METERS / CONST.METERS_PER_ROW) - 1.5) * CONST.SIZE;
+    let goalMeterY = (CONST.TOTAL_ROWS - (CONST.GOAL_METERS / CONST.METERS_PER_ROW) - CONST.GOAL_Y_OFFSET_BLOCKS) * CONST.SIZE;
     for (let h of STATE.humans) {
       if (h.y > goalMeterY) {
         allReached = false;
@@ -199,6 +195,7 @@ export function update(dt) {
     BLOCK.setPair(STATE.nextPair);
     STATE.setNextPair(BLOCK.newPair());
   }
+  BLOCK.updatePairRender();
 
   BLOCK.addDrop(dt);
   let speed = BLOCK.fast ? CONST.FAST : CONST.FALL;
@@ -243,7 +240,7 @@ function updateBombs(dt) {
       if (Math.random() < prob / 100) {
         STATE.fallingBombs.push({
           x: Math.floor(Math.random() * CONST.COLS),
-          y: WORLD.cameraY - 2,
+          y: WORLD.cameraY - CONST.BOMB_SPAWN_Y_OFF_BLOCKS,
           timer: CONST.BOMB_TIMER_MIN + Math.random() * (CONST.BOMB_TIMER_MAX - CONST.BOMB_TIMER_MIN)
         });
       }
@@ -352,7 +349,7 @@ function updateRescue(dt) {
     if (checkRowFullCracked(y)) {
       // その行（ブロックの上）に立っている人間をカウント
       let humansAtRow = STATE.humans.filter(h => {
-        let gy = Math.floor((h.y + CONST.HUMAN_LOGICAL_SIZE - 2) / CONST.SIZE);
+        let gy = Math.floor((h.y + CONST.HUMAN_LOGICAL_SIZE - CONST.HUMAN_STANDING_SEARCH_OFFSET) / CONST.SIZE);
         return gy === y + 1; // y行目のブロックの上に立っているのはy+1行目
       });
 
@@ -378,7 +375,7 @@ function updateRescue(dt) {
 function checkBombDamage(bx, by) {
   const worldX = bx * CONST.SIZE + CONST.OFFSET_X + CONST.SIZE / 2;
   const worldY = by * CONST.SIZE + CONST.SIZE / 2;
-  const radius = CONST.SIZE * 1.5; // 爆発半径
+  const radius = CONST.SIZE * CONST.BOMB_DAMAGE_RADIUS_BLOCKS; // 爆発半径
   
   for (let h of STATE.humans) {
     if (h.isDead) continue;

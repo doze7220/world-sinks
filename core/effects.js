@@ -18,16 +18,16 @@ export function updateRain(dt) {
   if (STATE.rainParticles.length < targetCount && Math.random() < 0.5) {
     STATE.rainParticles.push({
       x: Math.random() * CONST.TOTAL_W,
-      y: -10,
-      v: 10 + Math.random() * 10,
-      len: 10 + Math.random() * 10
+      y: CONST.RAIN_START_Y,
+      v: CONST.RAIN_SPEED_MIN + Math.random() * CONST.RAIN_SPEED_RANGE,
+      len: CONST.RAIN_LEN_MIN + Math.random() * CONST.RAIN_LEN_RANGE
     });
   }
 
   // 雨の更新
   STATE.rainParticles.forEach(p => {
     p.y += p.v;
-    p.x += 1; // 斜めに降らせる
+    p.x += CONST.RAIN_SLANT; // 斜めに降らせる
   });
   STATE.setRainParticles(STATE.rainParticles.filter(p => p.y < CONST.MAIN_H));
 }
@@ -70,10 +70,10 @@ export function spawnParticles(x, y, color) {
       STATE.particles.push({
         x: x + localX,
         y: y + localY,
-        vx: dx * CONST.PARTICLE_SPEED + (Math.random() - 0.5) * 0.012,
-        vy: Math.abs(dy) * CONST.PARTICLE_SPEED * 0.25 + Math.random() * 0.018,
-        life: CONST.PARTICLE_LIFE + Math.random() * 18,
-        maxLife: CONST.PARTICLE_LIFE + 18,
+        vx: dx * CONST.PARTICLE_SPEED + (Math.random() - 0.5) * CONST.PARTICLE_RAND_VX,
+        vy: Math.abs(dy) * CONST.PARTICLE_SPEED * CONST.PARTICLE_RAND_VY_RATIO + Math.random() * CONST.PARTICLE_RAND_VY_ADD,
+        life: CONST.PARTICLE_LIFE + Math.random() * CONST.PARTICLE_LIFE_RANGE,
+        maxLife: CONST.PARTICLE_LIFE + CONST.PARTICLE_LIFE_RANGE,
         c: color,
         size: CONST.PARTICLE_SIZE
       });
@@ -95,23 +95,23 @@ export function updateParticles() {
 
 export function spawnClearCelebration() {
   const cx = CONST.OFFSET_X + (CONST.COLS * CONST.SIZE) / 2;
-  const cy = 220;
+  const cy = CONST.CLEAR_CELEB_Y;
   const colors = ["#ff4d4d", "#ffd54f", "#66e066", "#66b3ff", "#ff7ad9", "#ffffff"];
-  for (let i = 0; i < 140; i++) {
+  for (let i = 0; i < CONST.CONFETTI_COUNT; i++) {
     const a = Math.random() * Math.PI * 2;
-    const sp = 2.4 + Math.random() * 3.2;
+    const sp = CONST.CONFETTI_SPEED_MIN + Math.random() * CONST.CONFETTI_SPEED_RANGE;
     STATE.confetti.push({
       x: cx,
       y: cy,
       vx: Math.cos(a) * sp,
-      vy: Math.sin(a) * sp - 2.2,
-      g: 0.11 + Math.random() * 0.06,
+      vy: Math.sin(a) * sp + CONST.CONFETTI_VY_OFFSET,
+      g: CONST.CONFETTI_G_MIN + Math.random() * CONST.CONFETTI_G_RANGE,
       r: Math.random() * Math.PI * 2,
-      vr: (Math.random() - 0.5) * 0.35,
-      w: 8 + Math.random() * 7,
-      h: 4 + Math.random() * 5,
+      vr: (Math.random() - 0.5) * CONST.CONFETTI_VR_RANGE,
+      w: CONST.CONFETTI_W_MIN + Math.random() * CONST.CONFETTI_W_RANGE,
+      h: CONST.CONFETTI_H_MIN + Math.random() * CONST.CONFETTI_H_RANGE,
       c: colors[(Math.random() * colors.length) | 0],
-      life: 85 + Math.random() * 45
+      life: CONST.CONFETTI_LIFE_MIN + Math.random() * CONST.CONFETTI_LIFE_RANGE
     });
   }
 }
@@ -121,9 +121,9 @@ export function updateCelebrationEffects() {
     p.x += p.vx;
     p.y += p.vy;
     p.vy += p.g;
-    p.vx *= 0.996;
+    p.vx *= CONST.CONFETTI_FRICTION;
     p.r += p.vr;
     p.life--;
   });
-  STATE.setConfetti(STATE.confetti.filter(p => p.life > 0 && p.y < 560));
+  STATE.setConfetti(STATE.confetti.filter(p => p.life > 0 && p.y < CONST.CONFETTI_Y_LIMIT));
 }

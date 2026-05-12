@@ -1,6 +1,7 @@
 import * as CONST from '../data/constants.js';
 import * as STATE from '../core/stateManager.js';
 import * as WORLD from '../world/world.js';
+import { HUMAN_TEXT_JP } from '../text/human_text_jp.js';
 
 let humanAtlas = null;
 const ATLAS_W = 64;
@@ -47,7 +48,7 @@ export function initHumanAtlas() {
 
   // Speech Sprites
   const texts = ["Σ"];
-  Object.values(CONST.HUMAN_SPEECH_DICT).forEach(list => texts.push(...list));
+  Object.values(HUMAN_TEXT_JP.SPEECH).forEach(list => texts.push(...list));
   
   let currentX = 0;
   let currentY = 20;

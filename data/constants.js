@@ -61,28 +61,13 @@ export const UI_COUNTDOWN_FONT = "bold 20px sans-serif";
 export const UI_COUNTDOWN_CENTER_OFFSET_X = 80;
 export const UI_COUNTDOWN_CENTER_OFFSET_Y = 15;
 
-export const UI_CAUTION_TEXT = "CAUTION!";
-export const UI_CAUTION_COLOR = "#FF3B3B";
-export const UI_CAUTION_STOKE_COLOR = "#FFFFFF";
-export const UI_CAUTION_STOKE_WIDTH = 4; // 2px border on each side = 4
-export const UI_CAUTION_FONT = "bold 48px sans-serif";
-export const UI_SIDE_LINE_WIDTH = 4;
-export const UI_SIDE_LINE_COLOR = "#FFFFFF";
-
-export const UI_CAUTION_ANIM_DURATION = 0.8;
-export const UI_CAUTION_FADE_OUT_DURATION = 0.25;
-
-export const LIMIT_WARNING_LINES = [
-    "地面は安全高度から",
-    "6ブロック上までしか",
-    "積めません！"
-];
 export const SAFE_LINE_LERP = 0.15;
 
 // RADAR (線・透明度・枠)
 export const RADAR_LINE_WIDTH = 3;
 export const RADAR_VIEW_BOX_COLOR = "rgba(255, 255, 255, 0.25)";
 export const RADAR_VIEW_BOX_BORDER_COLOR = "#FFFFFF";
+export const RADAR_HUMAN_SIZE_RATIO = 0.56;
 // export const RADAR_VIEW_BOX_BORDER_WIDTH = 2;
 // export const RADAR_VIEW_BOX_V_LINE_WIDTH = 1;
 
@@ -126,6 +111,115 @@ export const WATER_START_METERS = -10;
 export const PAIR_MOVE_LERP = 0.28;
 export const PAIR_FALL_LERP = 0.18;
 export const PAIR_ROT_LERP = 0.25;
+
+// CLOUD
+export const CLOUD_RANDOM_X_MAX = 340;
+export const CLOUD_SIZE_MIN = 18;
+export const CLOUD_SIZE_RANGE = 28;
+export const CLOUD_Y_CLIP_MIN = -120;
+export const CLOUD_Y_CLIP_MAX = 600;
+
+// WATER_VISUAL
+export const WATER_DANGER_WAVE_AMP = 10;
+export const WATER_WAVE_X_DIV_1 = 80;
+export const WATER_WAVE_X_DIV_2 = 50;
+
+// UI_LAYOUT
+export const WATER_LABEL_X = 15;
+export const WATER_LABEL_Y_OFF = 15;
+export const WATER_METERS_X = 18;
+export const WATER_METERS_Y_OFF = 2;
+export const RADAR_LABEL_EXT = 55;
+export const RADAR_LABEL_Y_OFF = 5;
+export const SURVIVAL_LIST_X = 15;
+export const SURVIVAL_LIST_Y = 70;
+export const SURVIVAL_LIST_SPACING_X = 22;
+export const SURVIVAL_LIST_SPACING_Y = 22;
+export const NEXT_BOX_X = 10;
+export const NEXT_BOX_Y = 10;
+export const NEXT_BOX_W = 80;
+export const NEXT_BOX_H = 40;
+export const NEXT_MINI_BLOCK_SIZE = 12;
+export const CLEAR_UI_Y_START = 560;
+export const CLEAR_UI_Y_TARGET = 230;
+export const GAMEOVER_UI_Y_START = -120;
+export const GAMEOVER_UI_Y_TARGET = 240;
+
+export const EDITOR_PREVIEW_X_1X = 450;
+export const EDITOR_PREVIEW_X_2X = 350;
+export const EDITOR_PREVIEW_Y = 240;
+
+// PHYSICS
+export const GRAVITY_ACCEL = 9.8;
+export const EXPLOSION_GRAVITY = 20;
+export const DROWN_SINK_SPEED = 0.5;
+
+// HUMAN_LOGIC
+export const HUMAN_STANDING_CHECK_OFFSET = 5;
+export const HUMAN_STANDING_SEARCH_OFFSET = 2;
+export const HUMAN_TICK_DELTA = 0.1;
+export const HUMAN_CELL_CENTER_THRESHOLD = 0.5;
+export const HUMAN_WALL_SEARCH_RANGE = 2;
+export const HUMAN_FALL_THRESHOLD_SIZE = 5;
+export const HUMAN_BLOCK_CENTER_RANGE_RATIO = 0.25;
+export const HUMAN_CANT_CLIMB_CHANCE = 0.05;
+export const HUMAN_LOOK_AHEAD_RATIO = 0.4;
+export const HUMAN_LEDGE_HEIGHT_THRESHOLD_SIZE = 5;
+export const HUMAN_SLIP_CHANCE = 0.5;
+export const HUMAN_FLOOD_NEAR_CHANCE = 0.02;
+export const HUMAN_FELL_OVER_CHANCE = 0.05;
+export const HUMAN_RANDOM_WALK_DIR_CHANCE = 0.1;
+export const HUMAN_RANDOM_WALK_STOP_CHANCE = 0.2;
+
+// GAME_LOGIC
+export const FLOOD_PHASE1_REMAIN = 7.0;
+export const FLOOD_PHASE2_REMAIN = 4.0;
+export const FLOOD_PHASE3_REMAIN = 2.0;
+export const CLEAR_RISE_SEC = 2.4;
+export const GOAL_Y_OFFSET_BLOCKS = 1.5;
+export const BOMB_SPAWN_Y_OFF_BLOCKS = 2;
+export const BOMB_DAMAGE_RADIUS_BLOCKS = 1.5;
+
+// BLOCK_TYPES
+export const BLOCK_TYPE_BOMB = 9;
+export const BLOCK_ERASE_THRESHOLD = 4;
+
+// BLOCK_SPAWN
+export const BLOCK_SIZE_PROB_2 = 0.6;
+export const BLOCK_SIZE_PROB_3 = 0.9;
+export const BLOCK_INITIAL_X = 2;
+export const BLOCK_HIT_THRESHOLD = 0.01;
+
+// EFFECTS_VISUAL
+export const RAIN_START_Y = -10;
+export const RAIN_SPEED_MIN = 10;
+export const RAIN_SPEED_RANGE = 10;
+export const RAIN_LEN_MIN = 10;
+export const RAIN_LEN_RANGE = 10;
+export const RAIN_SLANT = 1;
+
+export const PARTICLE_RAND_VX = 0.012;
+export const PARTICLE_RAND_VY_RATIO = 0.25;
+export const PARTICLE_RAND_VY_ADD = 0.018;
+export const PARTICLE_LIFE_RANGE = 18;
+
+export const CLEAR_CELEB_Y = 220;
+export const CONFETTI_COUNT = 140;
+export const CONFETTI_SPEED_MIN = 2.4;
+export const CONFETTI_SPEED_RANGE = 3.2;
+export const CONFETTI_VY_OFFSET = -2.2;
+export const CONFETTI_G_MIN = 0.11;
+export const CONFETTI_G_RANGE = 0.06;
+export const CONFETTI_VR_RANGE = 0.35;
+export const CONFETTI_W_MIN = 8;
+export const CONFETTI_W_RANGE = 7;
+export const CONFETTI_H_MIN = 4;
+export const CONFETTI_H_RANGE = 5;
+export const CONFETTI_LIFE_MIN = 85;
+export const CONFETTI_LIFE_RANGE = 45;
+export const CONFETTI_FRICTION = 0.996;
+export const CONFETTI_Y_LIMIT = 560;
+export const DEBUG_MESSAGE_SEC = 1.0;
 
 /* ===== 高度制限設定 ===== */
 export const LIMIT_HEIGHT = 6;
@@ -190,6 +284,7 @@ export const CLOUD_COUNT = 14;
 export const CLOUD_PARALLAX = 0.6;
 export const CLOUD_DRIFT_PX_PER_SEC = 6;
 export const CLOUD_ALPHA = 0.9;
+export const SKY_RECT_OFFSET = 50;
 // export const TEST_EXTEND_WORLD_BG = true;
 
 /* キャンバスサイズ */
@@ -209,16 +304,16 @@ export const GAMEOVER_GRAVITY_STEPS = 6;
 // export const FLOOD_BLINK_PERIOD = 0.35;
 // export const FLOOD_GRACE_SEC = 10.0;
 export const LIMIT_WARNING_SEC = 5;
+export const UI_CAUTION_ANIM_DURATION = 1.0;
+export const UI_CAUTION_FADE_OUT_DURATION = 0.5;
+export const UI_CAUTION_FONT = "bold 40px sans-serif";
+export const UI_CAUTION_STOKE_WIDTH = 8;
 
 /* システム追加 */
 export const FPS_LIMIT = 60;
 export const WATER_ALPHA = 0.8; // 透明度 (0.0 to 1.0)
 
 /* ポーズ設定 */
-export const UI_PAUSE_OVERLAY_COLOR = "rgba(0, 0, 0, 0.5)";
-export const UI_PAUSE_TEXT_COLOR = "#FFFFFF";
-export const UI_PAUSE_BLINK_PERIOD = 1.0;
-export const UI_PAUSE_TEXT = "＜ PAUSE ＞";
 export const UI_PAUSE_FONT = "bold 40px sans-serif";
 
 /* ===== 人間AI設定 ===== */
@@ -295,17 +390,4 @@ export const HUMAN_DANGER_WATER_M = 30; // 3ブロック分(30m)
 export const SCORE_HUMAN_NORMAL = 100;
 export const SCORE_HUMAN_VIP = 500;
 
-export const HUMAN_SPEECH_DICT = {
-    DANGER: ["助けて！", "HELP!"],
-    FALLING: ["うわあぁ", "落ちるー!!"],
-    DROWNING: ["ぶくぶく…"],
-    LANDED: ["着地！", "ふぅ", "よし"],
-    FEAR: ["うわーー！", "助けられなかった…", "きゃー！！", "ひ、ひぃい！"],
-    CRACKED: ["ヒビだ…！", "登れないな", "Σ", "困ったぞ"],
-    OBSERVE: ["･･･"],
-    FLOOD_NEAR: ["水だー！", "水が来たぞー！", "逃げろー！"],
-    CANT_CLIMB: ["ここは登れない…", "他を回ろう", "上に行くにはどこへ…"],
-    LOST: ["上に行く道はどこだ…", "逃げ道がない…", "助けて…"],
-    FOUND_PATH: ["道だ！", "上に行けるぞ！", "これで助かる！"],
-    GOAL: ["神様ありがとう！", "生き残れた！", "やったーー！！"]
-};
+

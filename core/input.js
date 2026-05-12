@@ -1,9 +1,10 @@
 import * as STATE from './stateManager.js';
 import * as BLOCK from '../entities/block.js';
-import { initEditor, handleEditorClick } from '../ui/humanEditor.js';
+import * as EDITOR from '../ui/humanEditor.js';
 import * as RENDER from '../render/renderer.js';
 import * as WORLD from '../world/world.js';
 import * as CONST from '../data/constants.js';
+import { SYSTEM_TEXT as TEXT } from '../ui/text_system.js';
 
 export function setupInput() {
   const canvas = document.querySelector('canvas');
@@ -12,14 +13,23 @@ export function setupInput() {
       const rect = canvas.getBoundingClientRect();
       const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
       const my = (e.clientY - rect.top) * (canvas.height / rect.height);
-      if (handleEditorClick(mx, my)) return;
+      if (EDITOR.handleEditorClick(mx, my)) return;
     }
   });
 
-  document.addEventListener("keydown", e => {
+  window.addEventListener("keydown", (e) => {
+    if (STATE.state === "human_edit") {
+      if (e.key === "ArrowLeft") EDITOR.prevPage();
+      if (e.key === "ArrowRight") EDITOR.nextPage();
+      if (e.key === "Escape" || e.key === "q" || e.key === "Q") {
+        STATE.setState("title");
+      }
+      return;
+    }
+
     if (STATE.state === "title") {
       if (e.code === "Digit1") {
-        initEditor();
+        EDITOR.initEditor();
         return;
       }
       if (e.code !== "Space") return;
@@ -76,12 +86,12 @@ export function setupInput() {
       const alive = STATE.humans.filter(h => !h.isDead);
       if (alive.length > 0) {
         alive[Math.floor(Math.random() * alive.length)].die('none');
-        STATE.showDebugMessage("DEBUG: Random Human Died");
+        STATE.showDebugMessage(TEXT.DEBUG_HUMAN_DIED);
       }
     }
     if (e.key === "7") {
       STATE.setSpawnEnabled(!STATE.spawnEnabled);
-      STATE.showDebugMessage("SPAWN: " + (STATE.spawnEnabled ? "ON" : "OFF"));
+      STATE.showDebugMessage(TEXT.DEBUG_SPAWN_PREFIX + (STATE.spawnEnabled ? "ON" : "OFF"));
     }
 
     if (e.code === "KeyQ" && STATE.state === "playing") {
@@ -94,28 +104,28 @@ export function setupInput() {
       if (e.code === "Digit1" || e.code === "Numpad1") {
         STATE.fallingBombs.push({
           x: Math.floor(Math.random() * CONST.COLS),
-          y: WORLD.cameraY - 2,
+          y: WORLD.cameraY - CONST.BOMB_SPAWN_Y_OFF_BLOCKS,
           timer: CONST.BOMB_TIMER_MIN + Math.random() * (CONST.BOMB_TIMER_MAX - CONST.BOMB_TIMER_MIN)
         });
-        STATE.showDebugMessage("BOMB SPAWNED!");
+        STATE.showDebugMessage(TEXT.DEBUG_BOMB_SPAWNED);
       }
       if (e.code === "Digit2" || e.code === "Numpad2") {
         STATE.setDebugPauseCracking(!STATE.debugPauseCracking);
-        STATE.showDebugMessage(STATE.debugPauseCracking ? "CRACK & BOMB TIMER PAUSED" : "CRACK & BOMB TIMER RESUMED");
+        STATE.showDebugMessage(STATE.debugPauseCracking ? TEXT.DEBUG_CRACK_PAUSED : TEXT.DEBUG_CRACK_RESUMED);
       }
       if (e.code === "Digit3" || e.code === "Numpad3") {
         STATE.setDebugPauseWater(!STATE.debugPauseWater);
-        STATE.showDebugMessage(STATE.debugPauseWater ? "WATER PAUSED" : "WATER RESUMED");
+        STATE.showDebugMessage(STATE.debugPauseWater ? TEXT.DEBUG_WATER_PAUSED : TEXT.DEBUG_WATER_RESUMED);
       }
       if (e.code === "Digit4" || e.code === "Numpad4") {
         const jump = 50 / CONST.METERS_PER_ROW;
         WORLD.setWater(Math.max(-10 / CONST.METERS_PER_ROW, WORLD.water - jump));
-        STATE.showDebugMessage("WATER -50m");
+        STATE.showDebugMessage(TEXT.DEBUG_WATER_MINUS);
       }
       if (e.code === "Digit5" || e.code === "Numpad5") {
         const jump = 50 / CONST.METERS_PER_ROW;
         WORLD.setWater(WORLD.water + jump);
-        STATE.showDebugMessage("WATER +50m");
+        STATE.showDebugMessage(TEXT.DEBUG_WATER_PLUS);
       }
     }
 

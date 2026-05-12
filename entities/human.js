@@ -2,6 +2,7 @@ import * as CONST from '../data/constants.js';
 import * as WORLD from '../world/world.js';
 import * as STATE from '../core/stateManager.js';
 import * as SCORE from '../ui/score.js';
+import { HUMAN_TEXT_JP } from '../text/human_text_jp.js';
 
 export class Human {
   constructor(id, x, y, isVIP = false) {
@@ -41,7 +42,7 @@ export class Human {
         let offset = (typeof cell === 'object' && cell.renderOffsetY) ? cell.renderOffsetY : 0;
         let cellY = (y + offset) * CONST.SIZE;
         // 判定基準となる高さ（通常は足元の少し上）より下にあるブロックのみを返す
-        if (cellY >= fromY - 5) {
+        if (cellY >= fromY - CONST.HUMAN_STANDING_CHECK_OFFSET) {
           return cellY;
         }
       }
@@ -78,7 +79,7 @@ export class Human {
   onBlockBroken(bx, by) {
     let gx = Math.round((this.x - CONST.OFFSET_X) / CONST.SIZE);
     let gy = Math.floor(this.y / CONST.SIZE);
-    let feetGy = Math.floor((this.y + CONST.HUMAN_LOGICAL_SIZE - 2) / CONST.SIZE);
+    let feetGy = Math.floor((this.y + CONST.HUMAN_LOGICAL_SIZE - CONST.HUMAN_STANDING_CHECK_OFFSET + 3) / CONST.SIZE);
     
     if (bx === gx && (by === gy || by === feetGy || by === feetGy + 1)) {
       if (this.state !== 'fall') {
@@ -104,6 +105,7 @@ export class Human {
        // 乗っているブロックが落ちた -> 即落下状態へ
        if (this.state !== 'fall') {
          this.state = 'fall';
+         this.fallStartY = this.y; // 落下開始位置
          this.climbFlag = false;
        }
     }
@@ -117,21 +119,18 @@ export class Human {
     if (this.y > waterY) {
       if (this.state !== 'drown' && this.state !== 'goal') {
         this.state = 'drown';
-        this.timer = CONST.HUMAN_DROWN_SEC;
+        this.timer = CONST.HUMAN_DROWN_DEATH_SEC; // 死亡までの時間
         this.say("DROWNING");
+      } else if (this.state === 'drown' && this.timer <= 0) {
+        this.die('drown');
       }
       if (this.state !== 'goal') return;
-    }
-
-    if (this.isDead) {
-      this.updateDeath(dt);
-      return;
     }
 
     if (this.state === 'goal') return;
 
     if (this.state === 'shock') {
-      this.timer -= 0.1; // Tickベースの概算
+      this.timer -= CONST.HUMAN_TICK_DELTA; // Tickベースの概算
       if (this.timer <= 0) {
         this.state = 'walk';
         this.dir = Math.random() < 0.5 ? -1 : 1;
@@ -154,7 +153,7 @@ export class Human {
 
       // 50%の位置（セルの半分）まで登ったかチェック
       let cellTopY = gy * CONST.SIZE;
-      if (this.y <= cellTopY + CONST.SIZE * 0.5) {
+      if (this.y <= cellTopY + CONST.SIZE * CONST.HUMAN_CELL_CENTER_THRESHOLD) {
         // 崩壊！
         WORLD.grid[gy][gx] = null;
         STATE.showDebugMessage("RESCUE: CRACKED BLOCK BROKEN");
@@ -209,9 +208,10 @@ export class Human {
     }
 
     // 落下判定
-    if (this.state !== 'climb' && feetY < standingY - 5) {
+    if (this.state !== 'climb' && feetY < standingY - CONST.HUMAN_FALL_THRESHOLD_SIZE) {
       if (this.state !== 'fall') {
         this.state = 'fall';
+        this.fallStartY = this.y;
         this.vx = 0;
         this.say("FALLING");
       }
@@ -245,7 +245,7 @@ export class Human {
         this.state = 'walk';
         this.climbFlag = false;
         this.vy = 0;
-      } else if (this.y <= wallY - CONST.HUMAN_LOGICAL_SIZE + 2) { // 登りきった
+      } else if (this.y <= wallY - CONST.HUMAN_LOGICAL_SIZE + CONST.HUMAN_STANDING_SEARCH_OFFSET) { // 登りきった
         this.y = wallY - CONST.HUMAN_LOGICAL_SIZE;
         this.state = 'walk';
         this.climbFlag = false;
@@ -262,7 +262,7 @@ export class Human {
         let blockCenterX = gx * CONST.SIZE + CONST.OFFSET_X + CONST.SIZE / 2;
         let distFromCenter = Math.abs(this.x - blockCenterX);
         
-        if (distFromCenter <= CONST.SIZE * 0.25) {
+        if (distFromCenter <= CONST.SIZE * CONST.HUMAN_BLOCK_CENTER_RANGE_RATIO) {
           this.state = 'climb';
           this.climbFlag = true;
           this.vx = 0;
@@ -271,7 +271,7 @@ export class Human {
         }
       } else {
         // 登れない壁（赤ブロックなど）
-        if (Math.random() < 0.05) this.say("CANT_CLIMB");
+        if (Math.random() < CONST.HUMAN_CANT_CLIMB_CHANCE) this.say("CANT_CLIMB");
         // 壁にぶつかったので反転
         if (this.state === 'walk') {
            this.dir *= -1;
@@ -282,14 +282,14 @@ export class Human {
 
     // 先読み：歩く先にブロックがない場合は引き返す
     if (this.state === 'walk' || this.state === 'escape') {
-      let nextGx = Math.round((this.x + this.dir * CONST.SIZE * 0.4 - CONST.OFFSET_X) / CONST.SIZE);
+      let nextGx = Math.round((this.x + this.dir * CONST.SIZE * CONST.HUMAN_LOOK_AHEAD_RATIO - CONST.OFFSET_X) / CONST.SIZE);
       nextGx = Math.max(0, Math.min(CONST.COLS - 1, nextGx));
       let nextStandingY = this.getStandingY(nextGx, feetY);
       
-      if (nextStandingY > feetY + 5) { // 段差が大きい
+      if (nextStandingY > feetY + CONST.HUMAN_LEDGE_HEIGHT_THRESHOLD_SIZE) { // 段差が大きい
         if (this.state === 'escape') {
           // 逃走中は50%で気づかず落ちる
-          if (Math.random() < 0.5) {
+          if (Math.random() < CONST.HUMAN_SLIP_CHANCE) {
              // 続行（そのまま走って落ちる）
           } else {
             this.dir *= -1;
@@ -306,7 +306,7 @@ export class Human {
     // 洪水接近の警告
     let distToWater = waterY - feetY;
     if (distToWater > 0 && distToWater < CONST.SIZE * 3) {
-      if (Math.random() < 0.02) this.say("FLOOD_NEAR");
+      if (Math.random() < CONST.HUMAN_FLOOD_NEAR_CHANCE) this.say("FLOOD_NEAR");
     }
 
     // 迷子判定
@@ -330,7 +330,7 @@ export class Human {
     if (isDanger) {
       this.state = 'escape';
       this.lastClimbTime = STATE.elapsed; // 逃げてる間は迷子にならない
-      if (Math.random() < 0.05) {
+      if (Math.random() < CONST.HUMAN_FELL_OVER_CHANCE) {
         this.state = 'fell_over';
         this.timer = CONST.HUMAN_FALL_OVER_SEC;
         this.say("FELL_OVER");
@@ -342,8 +342,8 @@ export class Human {
       if (this.state !== 'fall') {
         if (this.state !== 'lost') this.state = 'walk';
         this.vy = 0;
-        if (Math.random() < 0.1) this.dir *= -1;
-        else if (Math.random() < 0.2) this.vx = 0;
+        if (Math.random() < CONST.HUMAN_RANDOM_WALK_DIR_CHANCE) this.dir *= -1;
+        else if (Math.random() < CONST.HUMAN_RANDOM_WALK_STOP_CHANCE) this.vx = 0;
         else this.vx = this.dir * speedMult * CONST.SIZE;
       }
     }
@@ -365,7 +365,7 @@ export class Human {
     }
 
     if (this.state === 'fall' || this.state === 'drown') {
-      this.vy += 9.8 * CONST.SIZE * dt;
+      this.vy += CONST.GRAVITY_ACCEL * CONST.SIZE * dt;
       this.vx = 0; // 落下中・溺れ中は横移動禁止
       
       if (this.state === 'drown') {
@@ -426,6 +426,11 @@ export class Human {
 
   update(dt) {
     this.animTime += dt;
+    if (this.isDead) {
+      this.updateDeath(dt);
+      return;
+    }
+    
     this.aiTimer -= dt;
     if (this.speechTimer > 0) this.speechTimer -= dt;
     if (this.speechCooldown > 0) this.speechCooldown -= dt;
@@ -480,7 +485,7 @@ export class Human {
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
           rot: Math.random() * Math.PI * 2,
-          vrot: (Math.random() - 0.5) * 10
+          vrot: (Math.random() - 0.5) * CONST.EXPLOSION_GRAVITY
         });
       }
     }
@@ -518,11 +523,11 @@ export class Human {
         for (let p of this.deathParts) {
           p.x += p.vx * dt;
           p.y += p.vy * dt;
-          p.vy += 20 * CONST.SIZE * dt; // 簡易重力
+          p.vy += CONST.EXPLOSION_GRAVITY * CONST.SIZE * dt; // 簡易重力
           p.rot += p.vrot * dt;
         }
       } else if (this.deathType === 'drown') {
-        this.y += 0.5 * CONST.SIZE * dt; // ゆっくり沈む
+        this.y += CONST.DROWN_SINK_SPEED * CONST.SIZE * dt; // ゆっくり沈む
       }
       
       if (this.deathTimer <= 0) {
@@ -546,8 +551,8 @@ export class Human {
          return;
       }
     }
-
-    let texts = CONST.HUMAN_SPEECH_DICT[key];
+    
+    let texts = HUMAN_TEXT_JP.SPEECH[key];
     if (!texts) return;
     this.speechText = texts[Math.floor(Math.random() * texts.length)];
     this.speechTimer = CONST.HUMAN_SPEECH_SEC;

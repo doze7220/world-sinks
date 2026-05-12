@@ -33,8 +33,8 @@ export function newPair() {
   let size;
   if (CONST.RANDOM_SHAPE) {
     const r = Math.random();
-    if (r < 0.6) size = 2;
-    else if (r < 0.9) size = 3;
+    if (r < CONST.BLOCK_SIZE_PROB_2) size = 2;
+    else if (r < CONST.BLOCK_SIZE_PROB_3) size = 3;
     else size = 4;
   } else {
     if (CONST.BLOCK_SHAPE_SIZE <= 1) size = 2;
@@ -50,13 +50,13 @@ export function newPair() {
   }
 
   return {
-    x: 2,
+    x: CONST.BLOCK_INITIAL_X,
     y: Math.floor(WORLD.cameraY),
     rot: 0,
     size: size,
     c: c,
     cracked: cracked,
-    rx: 2,
+    rx: CONST.BLOCK_INITIAL_X,
     ry: Math.floor(WORLD.cameraY),
     rrot: 0
   };
@@ -112,7 +112,7 @@ export function hit(bs) {
         break;
       }
     }
-    if (b.y + 1 > visualTop + 0.01) return true;
+    if (b.y + 1 > visualTop + CONST.BLOCK_HIT_THRESHOLD) return true;
   }
   return false;
 }
