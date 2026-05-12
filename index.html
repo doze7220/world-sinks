@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>世界沈没</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+    }
+
+    #wrap {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      margin-top: 20px;
+    }
+
+    canvas {
+      background: #111;
+    }
+
+    #rightUI {
+      position: relative;
+      width: 150px;
+      height: 480px;
+      font-size: 11px;
+      display: none;
+    }
+
+    .label {
+      position: absolute;
+      left: 0;
+      transform: translateY(-100%);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>世界沈没</h2>
+
+  <div id="wrap">
+    <canvas id="game"></canvas>
+  </div>
+
+  <!-- エントリポイント -->
+  <script type="module">
+    import { TOTAL_W, MAIN_H } from './data/constants.js';
+    import { setupInput } from './core/input.js';
+    import { loop } from './core/gameLoop.js';
+
+    const canvas = document.getElementById("game");
+    canvas.width = TOTAL_W;
+    canvas.height = MAIN_H;
+
+    setupInput();
+    loop();
+  </script>
+</body>
+</html>
