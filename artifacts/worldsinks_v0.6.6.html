@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>世界沈没 v0.6.6</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    #wrap {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      margin-top: 20px;
+    }
+
+    canvas {
+      background: #111;
+      border: 2px solid #333;
+    }
+
+    #rightUI {
+      position: relative;
+      width: 150px;
+      height: 480px;
+      font-size: 11px;
+      display: none;
+    }
+
+    .label {
+      position: absolute;
+      left: 0;
+      transform: translateY(-100%);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>世界沈没 <small style="font-size: 0.5em; opacity: 0.7;">v0.6.6</small></h2>
+
+  <div id="wrap">
+    <canvas id="game"></canvas>
+  </div>
+
+  <script>
+    // =========================================================================
+    // STANDALONE MERGED SCRIPT - World Sinks v0.6.6
+    // =========================================================================
+
+    // --- Namespace Declarations ---
+    const CONST = {};
+    const STATE = {};
+    const WORLD = {};
+    const BLOCK = {};
+    const COLLAPSE = {};
+    const EFFECTS = {};
+    const RENDER = {};
+    const SCORE = {};
+    const EDITOR = {};
+    const TEXT = {};
+    const HUMAN_TEXT_JP = {};
+
+    // =========================
+    // data/constants.js
+    // =========================
+    Object.assign(CONST, {
+      BASE_WAVE_AMPLITUDE: 8,
+      DANGER_WAVE_AMPLITUDE: 10,
+      WAVE_PERIOD_1: 2.5,
+      WAVE_PERIOD_2: 1.3,
+      CRACKED_BLOCK_PROBABILITY: 0.2,
+      WATER_TOP_COLOR: "#4FC3F7",
+      WATER_MID_COLOR: "#2A7FBF",
+      WATER_BOTTOM_COLOR: "#0A1A2A",
+      WATER_HIGHLIGHT_COLOR: "#FFFFFF",
+      WATER_HIGHLIGHT_THICKNESS: 3,
+      DANGER_PROXIMITY_BLOCKS: 3,
+      DANGER_COUNTDOWN_SECONDS: 10.0,
+      PROXIMITY_BRIGHTNESS_DROP: 0.9,
+      SHAKE_INTENSITY_PHASE3: 2,
+      SHAKE_INTENSITY_PHASE4: 5,
+      SHAKE_PERIOD_PHASE3: 0.1,
+      SHAKE_PERIOD_PHASE4: 0.08,
+      THUNDER_INTERVAL_PHASE3: 2.5,
+      THUNDER_INTERVAL_PHASE4: 1.0,
+      THUNDER_FLASH_DURATION: 0.1,
+      RAIN_COUNT_BASE: 50,
+      RAIN_MULTIPLIER_PHASE1: 1.0,
+      RAIN_MULTIPLIER_PHASE2: 1.5,
+      RAIN_MULTIPLIER_PHASE3: 2.0,
+      RAIN_MULTIPLIER_PHASE4: 2.5,
+      UI_COUNTDOWN_X: 65,
+      UI_COUNTDOWN_Y: 20,
+      UI_COUNTDOWN_NORMAL_COLOR: "#FFFFFF",
+      UI_COUNTDOWN_DANGER_COLOR: "#FF3B3B",
+      UI_COUNTDOWN_SCALE_MIN: 1.0,
+      UI_COUNTDOWN_SCALE_MAX: 1.1,
+      UI_COUNTDOWN_ANIM_PERIOD: 1.0,
+      UI_COUNTDOWN_TEXT_OUTLINE_WIDTH: 4,
+      UI_COUNTDOWN_TEXT_OUTLINE_COLOR: "rgba(0,0,0,0.85)",
+      UI_COUNTDOWN_FONT: "bold 20px sans-serif",
+      UI_COUNTDOWN_CENTER_OFFSET_X: 80,
+      UI_COUNTDOWN_CENTER_OFFSET_Y: 15,
+      SAFE_LINE_LERP: 0.15,
+      RADAR_LINE_WIDTH: 3,
+      RADAR_VIEW_BOX_COLOR: "rgba(255, 255, 255, 0.25)",
+      RADAR_VIEW_BOX_BORDER_COLOR: "#FFFFFF",
+      RADAR_HUMAN_SIZE_RATIO: 0.56,
+      BOMB_TIMER_MIN: 10,
+      BOMB_TIMER_MAX: 30,
+      BOMB_START_METERS: 0,
+      BOMB_PROB_STEP_METERS: 10,
+      BOMB_PROB_STEP_PERCENT: 50,
+      BOMB_PROB_MAX_PERCENT: 10,
+      BOMB_CHECK_INTERVAL: 5,
+      BOMB_FALL_SPEED: 3,
+      BLOCK_TYPES: 4,
+      RANDOM_SHAPE: true,
+      BLOCK_SHAPE_SIZE: 2,
+      COLS: 6,
+      ROWS: 12,
+      TOTAL_ROWS: 200,
+      SIZE: 40,
+      LEFT_UI_WIDTH: 130,
+      OFFSET_X: 130,
+      CAMERA_LERP: 0.05,
+      SAFE_LINE_SCREEN_Y: 12 - 3,
+      FALL: 0.6,
+      FAST: 0.05,
+      WATER_SPEED: 0.15,
+      WATER_START_DELAY: 0,
+      WATER_START_METERS: -10,
+      PAIR_MOVE_LERP: 0.28,
+      PAIR_FALL_LERP: 0.18,
+      PAIR_ROT_LERP: 0.25,
+      CLOUD_RANDOM_X_MAX: 340,
+      CLOUD_SIZE_MIN: 18,
+      CLOUD_SIZE_RANGE: 28,
+      CLOUD_Y_CLIP_MIN: -120,
+      CLOUD_Y_CLIP_MAX: 600,
+      WATER_DANGER_WAVE_AMP: 10,
+      WATER_WAVE_X_DIV_1: 80,
+      WATER_WAVE_X_DIV_2: 50,
+      WATER_LABEL_X: 15,
+      WATER_LABEL_Y_OFF: 15,
+      WATER_METERS_X: 18,
+      WATER_METERS_Y_OFF: 2,
+      RADAR_LINE_EXT: 5,
+      RADAR_LABEL_EXT: 55,
+      RADAR_LABEL_Y_OFF: 5,
+      SURVIVAL_LIST_X: 15,
+      SURVIVAL_LIST_Y: 70,
+      SURVIVAL_LIST_SPACING_X: 22,
+      SURVIVAL_LIST_SPACING_Y: 22,
+      NEXT_BOX_X: 10,
+      NEXT_BOX_Y: 10,
+      NEXT_BOX_W: 80,
+      NEXT_BOX_H: 40,
+      NEXT_MINI_BLOCK_SIZE: 12,
+      CLEAR_UI_Y_START: 560,
+      CLEAR_UI_Y_TARGET: 230,
+      GAMEOVER_UI_Y_START: -120,
+      GAMEOVER_UI_Y_TARGET: 240,
+      EDITOR_PREVIEW_X_1X: 450,
+      EDITOR_PREVIEW_X_2X: 350,
+      EDITOR_PREVIEW_Y: 240,
+      GRAVITY_ACCEL: 9.8,
+      EXPLOSION_GRAVITY: 20,
+      DROWN_SINK_SPEED: 0.5,
+      HUMAN_STANDING_CHECK_OFFSET: 5,
+      HUMAN_STANDING_SEARCH_OFFSET: 2,
+      HUMAN_TICK_DELTA: 0.1,
+      HUMAN_CELL_CENTER_THRESHOLD: 0.5,
+      HUMAN_WALL_SEARCH_RANGE: 2,
+      HUMAN_FALL_THRESHOLD_SIZE: 5,
+      HUMAN_BLOCK_CENTER_RANGE_RATIO: 0.25,
+      HUMAN_CANT_CLIMB_CHANCE: 0.05,
+      HUMAN_LOOK_AHEAD_RATIO: 0.4,
+      HUMAN_LEDGE_HEIGHT_THRESHOLD_SIZE: 5,
+      HUMAN_SLIP_CHANCE: 0.5,
+      HUMAN_FLOOD_NEAR_CHANCE: 0.02,
+      HUMAN_FELL_OVER_CHANCE: 0.05,
+      HUMAN_RANDOM_WALK_DIR_CHANCE: 0.1,
+      HUMAN_RANDOM_WALK_STOP_CHANCE: 0.2,
+      FLOOD_PHASE1_REMAIN: 7.0,
+      FLOOD_PHASE2_REMAIN: 4.0,
+      FLOOD_PHASE3_REMAIN: 2.0,
+      CLEAR_RISE_SEC: 2.4,
+      GOAL_Y_OFFSET_BLOCKS: 1.5,
+      BOMB_SPAWN_Y_OFF_BLOCKS: 2,
+      BOMB_DAMAGE_RADIUS_BLOCKS: 1.5,
+      BLOCK_TYPE_BOMB: 9,
+      BLOCK_ERASE_THRESHOLD: 4,
+      BLOCK_SIZE_PROB_2: 0.6,
+      BLOCK_SIZE_PROB_3: 0.9,
+      BLOCK_INITIAL_X: 2,
+      BLOCK_HIT_THRESHOLD: 0.01,
+      RAIN_START_Y: -10,
+      RAIN_SPEED_MIN: 10,
+      RAIN_SPEED_RANGE: 10,
+      RAIN_LEN_MIN: 10,
+      RAIN_LEN_RANGE: 10,
+      RAIN_SLANT: 1,
+      PARTICLE_RAND_VX: 0.012,
+      PARTICLE_RAND_VY_RATIO: 0.25,
+      PARTICLE_RAND_VY_ADD: 0.018,
+      PARTICLE_LIFE_RANGE: 18,
+      CLEAR_CELEB_Y: 220,
+      CONFETTI_COUNT: 140,
+      CONFETTI_SPEED_MIN: 2.4,
+      CONFETTI_SPEED_RANGE: 3.2,
+      CONFETTI_VY_OFFSET: -2.2,
+      CONFETTI_G_MIN: 0.11,
+      CONFETTI_G_RANGE: 0.06,
+      CONFETTI_VR_RANGE: 0.35,
+      CONFETTI_W_MIN: 8,
+      CONFETTI_W_RANGE: 7,
+      CONFETTI_H_MIN: 4,
+      CONFETTI_H_RANGE: 5,
+      CONFETTI_LIFE_MIN: 85,
+      CONFETTI_LIFE_RANGE: 45,
+      CONFETTI_FRICTION: 0.996,
+      CONFETTI_Y_LIMIT: 560,
+      DEBUG_MESSAGE_SEC: 1.0,
+      LIMIT_HEIGHT: 6,
+      METERS_PER_ROW: 10,
+      GOAL_METERS: 200,
+      ANIM_GLOW_SEC: 0.5,
+      ANIM_CRACK_SEC: 1.0,
+      ANIM_TOTAL_SEC: 1.5,
+      ANIM_FALL_DELAY: 0.1,
+      ANIM_FALL_SPEED: 20.0,
+      PARTICLE_DIV: 4,
+      PARTICLE_SIZE: 10,
+      PARTICLE_LIFE: 55,
+      PARTICLE_SPEED: 0.055,
+      PARTICLE_GRAVITY: 0.006,
+      PARTICLE_FRICTION: 0.985,
+      MAX_CASCADE_STEPS: 200,
+      BLOCK_PROPERTIES: {
+        1: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+        2: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+        3: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+        4: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+        5: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+        6: { weight: 1, hardness: 1, canClimb: 1, breakable: 1 },
+        9: { weight: 1, hardness: 1, canClimb: 0, breakable: 1 }
+      },
+      COLORS: [null, "#f55", "#5f5", "#55f", "#ff5", "#f5f"],
+      GROUND: "#6b4a2b",
+      WATER_LINE: "#66d9ff",
+      GOAL_LINE: "#ffeb3b",
+      SAFE_LINE: "#fff",
+      RADAR_INNER_W: 48,
+      RADAR_PAD: 10,
+      RADAR_V_PAD: 12,
+      SKY_TOP: "#2c6fff",
+      CLOUD_COUNT: 14,
+      CLOUD_PARALLAX: 0.6,
+      CLOUD_DRIFT_PX_PER_SEC: 6,
+      CLOUD_ALPHA: 0.9,
+      SKY_RECT_OFFSET: 50,
+      MAIN_W: 400,
+      MAIN_H: 480,
+      RADAR_CANVAS_W: 190,
+      RADAR_CANVAS_H: 480,
+      RADAR_X: 400,
+      TOTAL_W: 590,
+      GAMEOVER_FALL_SEC: 5,
+      GAMEOVER_WATER_MULT: 10,
+      GAMEOVER_GRAVITY_STEPS: 6,
+      LIMIT_WARNING_SEC: 5,
+      UI_CAUTION_ANIM_DURATION: 1.0,
+      UI_CAUTION_FADE_OUT_DURATION: 0.5,
+      UI_CAUTION_FONT: "bold 40px sans-serif",
+      UI_CAUTION_STOKE_WIDTH: 8,
+      FPS_LIMIT: 60,
+      WATER_ALPHA: 0.8,
+      UI_PAUSE_FONT: "bold 40px sans-serif",
+      UI_PAUSE_BLINK_PERIOD: 1.0,
+      HUMAN_COUNT_INITIAL: 50,
+      HUMAN_VIP_COUNT: 1,
+      HUMAN_RADIUS: 0.26,
+      HUMAN_LOGICAL_SIZE: 26,
+      HUMAN_SPEED_WALK: 0.4,
+      HUMAN_SPEED_CLIMB: 0.2,
+      HUMAN_SPEED_ESCAPE: 0.7,
+      HUMAN_SPEED_FAST_CLIMB: 1.25,
+      HUMAN_AI_TICK_MIN: 0.1,
+      HUMAN_AI_TICK_MAX: 1.0,
+      HUMAN_FALL_OVER_SEC: 2.0,
+      HUMAN_DROWN_SEC: 5.0,
+      HUMAN_SPEECH_SEC: 2.5,
+      HUMAN_LOST_SEC: 10.0,
+      HUMAN_SHOCK_SEC: 1.0,
+      HUMAN_GOAL_SUBSTATE_SEC: 2.0,
+      HUMAN_RESCUE_ENABLED: true,
+      HUMAN_RESCUE_TIME: 15.0,
+      HUMAN_DROWN_DEATH_SEC: 15.0,
+      HUMAN_FALL_DEATH_HEIGHT: 3.0,
+      HUMAN_DEATH_FADE_SEC: 3.0,
+      HUMAN_DEATH_SKULL_SEC: 2.0,
+      HUMAN_DEATH_REACTION_DIST: 2.0,
+      HUMAN_RENDER_CONFIG: {
+        BOUNCE_AMP: 2, SWAY_AMP: 1, FOOT_X_OFF: 6.8, FOOT_Y_OFF: -6.5, HAND_X_OFF: 4, HAND_Y_OFF_B: -1.2,
+        CLIMB_FOOT_X_OFF: 6.4, CLIMB_FOOT_Y_OFF: -0.9, CLIMB_HAND_X_OFF: 4.1, CLIMB_HAND_Y_OFF: -2,
+        BODY_SIZE_RATIO: 2.0, FOOT_W: 16, FOOT_H: 8, HAND_SIZE: 12, CLIMB_FOOT_W: 12, CLIMB_FOOT_H: 20,
+        SIGMA_OFFSET_X: -10, SIGMA_OFFSET_Y: -10, SIGMA_ROTATION: 45, SIGMA_SIZE: 14, SPEECH_FONT_SIZE: 8,
+        SWEAT_TEXT: "💦", SWEAT_X_OFF: 1.0, SWEAT_Y_OFF: -2.0, SWEAT_ROTATION: -90,
+        FALL_FOOT_X_OFF: 4.0, FALL_HAND_X_OFF: 10.0, FELL_OVER_FOOT_X_OFF: 6.0, FELL_OVER_HAND_X_OFF: 6.0,
+      },
+      HUMAN_DANGER_DIST: 2.5,
+      HUMAN_DANGER_WATER_M: 30,
+      SCORE_HUMAN_NORMAL: 100,
+      SCORE_HUMAN_VIP: 500,
+      UI_SIDE_LINE_WIDTH: 4,
+      GOAL_LINE_EXT: 0,
+      RADAR_BORDER_COLOR: "#FFF",
+    });
+
+    // =========================
+    // ui/text_system.js
+    // =========================
+    Object.assign(TEXT, {
+      TITLE: "世界沈没",
+      PUSH_SPACE: "PUSH SPACE KEY",
+      INTRO_LINES: ["ある日、突如として", "世界中の水位が上昇しはじめた。", "このままでは世界は沈没してしまう！", "", "神である貴方の力で「大地」を作り出し", "人類を沈没から救うのだ！"],
+      INTRO_CONTROLS: ["【操作】", "← → : ブロック移動", "↑ : 回転　↓ : 高速落下", "", "【ルール】", "地面は4つ以上繋がると消える", "横一列が地面で埋まった高さが安全高度", "水位が安全高度を超えると世界沈没の危機", "人間は「ヒビ入りブロック」を登れない！", "ゴールまで人間を導こう！"],
+      LIMIT_WARNING_LINES: ["地面は安全高度から", "6ブロック上までしか", "積めません！"],
+      CAUTION_TEXT: "CAUTION!",
+      WATER_LEVEL: "水位",
+      GOAL: "ゴール",
+      SAFE_HEIGHT: "安全高度",
+      GAME_OVER: "GAME OVER",
+      CONGRATULATIONS: "congratulations！",
+      GOAL_TEXT: "GOOL!!",
+      PAUSE_TEXT: "＜ PAUSE ＞",
+      PAUSE_OVERLAY_COLOR: "rgba(0, 0, 0, 0.5)",
+      PAUSE_TEXT_COLOR: "#FFFFFF",
+      UI_CAUTION_COLOR: "#FF3B3B",
+      UI_CAUTION_STOKE_COLOR: "#FFFFFF",
+      UI_SIDE_LINE_COLOR: "#FFFFFF",
+      DEBUG_BOMB_SPAWNED: "BOMB SPAWNED!",
+      DEBUG_CRACK_PAUSED: "CRACK & BOMB TIMER PAUSED",
+      DEBUG_CRACK_RESUMED: "CRACK & BOMB TIMER RESUMED",
+      DEBUG_WATER_PAUSED: "WATER PAUSED",
+      DEBUG_WATER_RESUMED: "WATER RESUMED",
+      DEBUG_WATER_MINUS: "WATER -50m",
+      DEBUG_WATER_PLUS: "WATER +50m",
+      DEBUG_HUMAN_DIED: "DEBUG: Random Human Died",
+      DEBUG_SPAWN_PREFIX: "SPAWN: ",
+      NEXT_LABEL: "NEXT",
+      RETURN_TO_TITLE: "Press SPACE to return Title",
+      FLOOD_COUNTDOWN_PREFIX: "水没まで",
+      FLOOD_COUNTDOWN_SUFFIX: "秒",
+    });
+
+    // =========================
+    // text/human_text_jp.js
+    // =========================
+    Object.assign(HUMAN_TEXT_JP, {
+      SPEECH: {
+        DANGER: ["助けて！", "HELP!"],
+        FALLING: ["うわあぁ", "落ちるー!!"],
+        DROWNING: ["ぶくぶく…"],
+        LANDED: ["着地！", "ふぅ", "よし"],
+        FEAR: ["うわーー！", "助けられなかった…", "きゃー！！", "ひ、ひぃい！"],
+        CRACKED: ["ヒビだ…！", "登れないな", "Σ", "困ったぞ"],
+        OBSERVE: ["･･･"],
+        FLOOD_NEAR: ["水だー！", "水が来たぞー！", "逃げろー！"],
+        CANT_CLIMB: ["ここは登れない…", "他を回ろう", "上に行くにはどこへ…"],
+        LOST: ["上に行く道はどこだ…", "逃げ道がない…", "助けて…"],
+        FOUND_PATH: ["道だ！", "上に行けるぞ！", "これで助かる！"],
+        GOAL: ["神様ありがとう！", "生き残れた！", "やったーー！！"]
+      }
+    });
+
+    // =========================
+    // core/stateManager.js
+    // =========================
+    Object.assign(STATE, {
+      state: "title",
+      elapsed: 0,
+      gravityActive: false,
+      cascadePhase: "fall_setup",
+      cascadeSteps: 0,
+      particles: [],
+      confetti: [],
+      floodPhase: "none",
+      floodBlinkStart: 0,
+      floodCountdownEnd: 0,
+      limitWarningUntil: 0,
+      gameoverStart: 0,
+      gameoverCameraY: 0,
+      clearStart: 0,
+      clearCelebrationFired: false,
+      lastBombCheck: 0,
+      fallingBombs: [],
+      spaceReleased: true,
+      humans: [],
+      allHumans: [],
+      deadHumans: [],
+      pair: null,
+      nextPair: null,
+      spawnEnabled: true,
+      rainParticles: [],
+      thunderFlashTimer: 0,
+      shakeOffset: { x: 0, y: 0 },
+      radarAbstractionMode: false,
+      cautionAnimTimer: 0,
+      currentPhase: 0,
+      fps: 0,
+      renderSafeLine: 199,
+      isPaused: false,
+      debugPauseCracking: false,
+      debugPauseWater: false,
+      debugMessage: "",
+      debugMessageTimer: 0,
+      editorHuman: null,
+      editorState: "walk",
+      editorLastSpeech: 0,
+      editorPage: 0,
+
+      setState: (s) => STATE.state = s,
+      setElapsed: (e) => STATE.elapsed = e,
+      addElapsed: (dt) => STATE.elapsed += dt,
+      setGravityActive: (a) => STATE.gravityActive = a,
+      setCascadePhase: (p) => STATE.cascadePhase = p,
+      setCascadeSteps: (s) => STATE.cascadeSteps = s,
+      setParticles: (p) => STATE.particles = p,
+      setConfetti: (c) => STATE.confetti = c,
+      setFloodPhase: (p) => STATE.floodPhase = p,
+      setFloodBlinkStart: (s) => STATE.floodBlinkStart = s,
+      setFloodCountdownEnd: (e) => STATE.floodCountdownEnd = e,
+      setLimitWarningUntil: (u) => STATE.limitWarningUntil = u,
+      setGameoverStart: (s) => STATE.gameoverStart = s,
+      setGameoverCameraY: (y) => STATE.gameoverCameraY = y,
+      setClearStart: (s) => STATE.clearStart = s,
+      setClearCelebrationFired: (f) => STATE.clearCelebrationFired = f,
+      setLastBombCheck: (c) => STATE.lastBombCheck = c,
+      setFallingBombs: (b) => STATE.fallingBombs = b,
+      setSpaceReleased: (r) => STATE.spaceReleased = r,
+      setHumans: (h) => STATE.humans = h,
+      setAllHumans: (h) => STATE.allHumans = h,
+      setDeadHumans: (h) => STATE.deadHumans = h,
+      setPair: (p) => STATE.pair = p,
+      setNextPair: (p) => STATE.nextPair = p,
+      setSpawnEnabled: (e) => STATE.spawnEnabled = e,
+      setRainParticles: (p) => STATE.rainParticles = p,
+      setThunderFlashTimer: (t) => STATE.thunderFlashTimer = t,
+      setShakeOffset: (x, y) => STATE.shakeOffset = { x, y },
+      setRadarAbstractionMode: (m) => STATE.radarAbstractionMode = m,
+      setCautionAnimTimer: (t) => STATE.cautionAnimTimer = t,
+      setCurrentPhase: (p) => STATE.currentPhase = p,
+      setFps: (f) => STATE.fps = f,
+      setRenderSafeLine: (l) => STATE.renderSafeLine = l,
+      setIsPaused: (p) => STATE.isPaused = p,
+      setDebugPauseCracking: (p) => STATE.debugPauseCracking = p,
+      setDebugPauseWater: (p) => STATE.debugPauseWater = p,
+      setDebugMessage: (m) => STATE.debugMessage = m,
+      setDebugMessageTimer: (t) => STATE.debugMessageTimer = t,
+      setEditorHuman: (h) => STATE.editorHuman = h,
+      setEditorState: (s) => STATE.editorState = s,
+      setEditorLastSpeech: (t) => STATE.editorLastSpeech = t,
+      setEditorPage: (p) => STATE.editorPage = p,
+      showDebugMessage: (msg) => {
+        STATE.debugMessage = msg;
+        STATE.debugMessageTimer = 1.0;
+      },
+      resetGame: () => {
+        WORLD.setGrid(WORLD.createInitialGrid());
+        WORLD.setCameraY(CONST.TOTAL_ROWS - CONST.ROWS);
+        WORLD.setTargetCameraY(CONST.TOTAL_ROWS - CONST.ROWS);
+        WORLD.setWater(CONST.WATER_START_METERS / CONST.METERS_PER_ROW);
+        WORLD.setSafeLine(CONST.TOTAL_ROWS - 1);
+        STATE.setRenderSafeLine(CONST.TOTAL_ROWS - 1);
+        STATE.elapsed = 0;
+        STATE.gravityActive = false;
+        STATE.cascadePhase = "fall_setup";
+        STATE.cascadeSteps = 0;
+        STATE.particles = [];
+        STATE.confetti = [];
+        STATE.humans = [];
+        STATE.deadHumans = [];
+        STATE.pair = null;
+        STATE.nextPair = null;
+        STATE.spawnEnabled = true;
+        STATE.floodPhase = "none";
+        STATE.floodBlinkStart = 0;
+        STATE.floodCountdownEnd = 0;
+        STATE.limitWarningUntil = 0;
+        STATE.gameoverStart = 0;
+        STATE.gameoverCameraY = 0;
+        STATE.clearStart = 0;
+        STATE.clearCelebrationFired = false;
+        STATE.lastBombCheck = 0;
+        STATE.fallingBombs = [];
+        STATE.rainParticles = [];
+        STATE.thunderFlashTimer = 0;
+        STATE.shakeOffset = { x: 0, y: 0 };
+        STATE.cautionAnimTimer = 0;
+        STATE.currentPhase = 0;
+        STATE.isPaused = false;
+        STATE.debugPauseCracking = false;
+        STATE.debugPauseWater = false;
+        STATE.debugMessage = "";
+        STATE.debugMessageTimer = 0;
+        STATE.editorHuman = null;
+        STATE.editorState = "walk";
+        STATE.editorLastSpeech = 0;
+        STATE.editorPage = 0;
+      }
+    });
+
+    // =========================
+    // world/world.js
+    // =========================
+    Object.assign(WORLD, {
+      grid: [],
+      cameraY: CONST.TOTAL_ROWS - 12,
+      targetCameraY: CONST.TOTAL_ROWS - 12,
+      water: -10 / CONST.METERS_PER_ROW,
+      safeLine: CONST.TOTAL_ROWS - 1,
+
+      createInitialGrid: () => {
+        const g = Array.from({ length: CONST.TOTAL_ROWS }, () => Array(CONST.COLS).fill(0));
+        for (let x = 0; x < CONST.COLS; x++) {
+          g[CONST.TOTAL_ROWS - 1][x] = 9;
+          g[CONST.TOTAL_ROWS - 2][x] = Math.floor(Math.random() * CONST.BLOCK_TYPES) + 1;
+        }
+        return g;
+      },
+      setGrid: (g) => WORLD.grid = g,
+      setCameraY: (y) => WORLD.cameraY = y,
+      setTargetCameraY: (y) => WORLD.targetCameraY = y,
+      setWater: (w) => WORLD.water = w,
+      setSafeLine: (s) => WORLD.safeLine = s,
+      heightMeters: () => Math.max(0, (CONST.TOTAL_ROWS - WORLD.safeLine - 2) * CONST.METERS_PER_ROW),
+      waterMeters: () => Math.floor(WORLD.water * CONST.METERS_PER_ROW),
+      waterWorldY: () => CONST.TOTAL_ROWS - 1 - WORLD.water,
+      updateSafe: () => {
+        for (let y = 0; y < CONST.TOTAL_ROWS - 1; y++) {
+          if (WORLD.grid[y].every(v => v)) {
+            WORLD.safeLine = y - 1;
+            return;
+          }
+        }
+        WORLD.safeLine = CONST.TOTAL_ROWS - 1;
+      }
+    });
+    WORLD.grid = WORLD.createInitialGrid();
+
+    // =========================
+    // world/collapse.js
+    // =========================
+    Object.assign(COLLAPSE, {
+      forceGravity: () => {
+        for (let x = 0; x < CONST.COLS; x++) {
+          for (let y = CONST.TOTAL_ROWS - 2; y >= 0; y--) {
+            if (WORLD.grid[y][x] && WORLD.grid[y][x] !== CONST.BLOCK_TYPE_BOMB && !WORLD.grid[y + 1][x]) {
+              WORLD.grid[y + 1][x] = WORLD.grid[y][x];
+              WORLD.grid[y][x] = 0;
+            }
+          }
+        }
+      },
+      setupGravity: () => {
+        let movedAny = false;
+        for (let x = 0; x < CONST.COLS; x++) {
+          let emptyY = -1;
+          for (let y = CONST.TOTAL_ROWS - 1; y >= 0; y--) {
+            let cell = WORLD.grid[y][x];
+            if (!cell) {
+              if (emptyY === -1) emptyY = y;
+            } else if (cell !== CONST.BLOCK_TYPE_BOMB) {
+              if (emptyY !== -1) {
+                let obj = cell;
+                if (typeof obj !== 'object') obj = { type: 'block', color: obj };
+                obj.renderOffsetY = y - emptyY;
+                obj.fallDelay = CONST.ANIM_FALL_DELAY;
+                WORLD.grid[emptyY][x] = obj;
+                WORLD.grid[y][x] = 0;
+                movedAny = true;
+                STATE.humans.forEach(h => h.onBlockMove(x, y, emptyY));
+                emptyY--;
+              }
+            } else if (cell === CONST.BLOCK_TYPE_BOMB) {
+              emptyY = -1;
+            }
+          }
+        }
+        return movedAny;
+      },
+      applyLimit: () => {
+        WORLD.updateSafe();
+        let erased = false;
+        for (let x = 0; x < CONST.COLS; x++) {
+          let count = 0;
+          for (let y = WORLD.safeLine; y >= 0; y--) {
+            let cell = WORLD.grid[y][x];
+            if (cell && cell !== CONST.BLOCK_TYPE_BOMB) {
+              count++;
+              if (count > CONST.LIMIT_HEIGHT) {
+                if (typeof cell === 'object' && cell.state === 'cracking') continue;
+                if (typeof cell === 'object' && cell.renderOffsetY < 0) continue;
+                if (typeof cell === 'object' && cell.type === 'bomb') continue;
+                let color = (typeof cell === 'object') ? cell.color : cell;
+                EFFECTS.spawnParticles(x, y, CONST.COLORS[color] || "#555555");
+                WORLD.grid[y][x] = 0;
+                erased = true;
+              }
+            } else count = 0;
+          }
+        }
+        return erased;
+      },
+      flagErase: () => {
+        let visited = Array.from({ length: CONST.TOTAL_ROWS }, () => Array(CONST.COLS).fill(false));
+        let erased = false;
+        let bombsToErase = new Set();
+        let blocksToErase = [];
+        for (let y = 0; y < CONST.TOTAL_ROWS; y++) {
+          for (let x = 0; x < CONST.COLS; x++) {
+            let cell = WORLD.grid[y][x];
+            if (!cell || cell === CONST.BLOCK_TYPE_BOMB || visited[y][x]) continue;
+            if (typeof cell === 'object' && (cell.type === 'bomb' || cell.state === 'cracking' || cell.renderOffsetY < 0)) continue;
+            let color = (typeof cell === 'object') ? cell.color : cell;
+            let stack = [[x, y]], group = [], groupBombs = new Set();
+            visited[y][x] = true;
+            while (stack.length) {
+              let [cx, cy] = stack.pop(); group.push([cx, cy]);
+              [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+                let nx = cx + dx, ny = cy + dy;
+                if (nx >= 0 && nx < CONST.COLS && ny >= 0 && ny < CONST.TOTAL_ROWS) {
+                  let nCell = WORLD.grid[ny][nx];
+                  if (nCell) {
+                    if (typeof nCell === 'object' && nCell.type === 'bomb') groupBombs.add(`${nx},${ny}`);
+                    else if (!visited[ny][nx]) {
+                      let nColor = (typeof nCell === 'object') ? nCell.color : nCell;
+                      if (!(typeof nCell === 'object' && (nCell.state === 'cracking' || nCell.renderOffsetY < 0)) && nColor === color) {
+                        visited[ny][nx] = true; stack.push([nx, ny]);
+                      }
+                    }
+                  }
+                }
+              });
+            }
+            if (group.length >= CONST.BLOCK_ERASE_THRESHOLD) {
+              group.forEach(([gx, gy]) => blocksToErase.push([gx, gy, color]));
+              groupBombs.forEach(b => bombsToErase.add(b));
+              erased = true;
+            }
+          }
+        }
+        blocksToErase.forEach(([bx, by, color]) => {
+          WORLD.grid[by][bx] = { type: 'block', color: color, state: 'cracking', timer: CONST.ANIM_TOTAL_SEC };
+          STATE.humans.forEach(h => h.onBlockBroken(bx, by));
+        });
+        bombsToErase.forEach(bStr => {
+          let [bx, by] = bStr.split(',').map(Number);
+          if (WORLD.grid[by][bx]) {
+            WORLD.grid[by][bx] = { type: 'bomb', timer: WORLD.grid[by][bx].timer, state: 'cracking', crackTimer: CONST.ANIM_TOTAL_SEC };
+            STATE.humans.forEach(h => h.onBlockBroken(bx, by));
+          }
+        });
+        return erased;
+      },
+      isBoardStable: () => {
+        for (let y = 0; y < CONST.TOTAL_ROWS; y++) {
+          for (let x = 0; x < CONST.COLS; x++) {
+            let cell = WORLD.grid[y][x];
+            if (cell && typeof cell === 'object' && (cell.state === 'cracking' || cell.renderOffsetY < 0)) return false;
+          }
+        }
+        return true;
+      },
+      startCascade: () => {
+        if (!STATE.gravityActive) {
+          STATE.setGravityActive(true); STATE.setCascadePhase("fall_setup"); STATE.setCascadeSteps(0);
+        }
+      },
+      updateCascade: (dt) => {
+        STATE.setCascadeSteps(STATE.cascadeSteps + 1);
+        if (STATE.cascadeSteps > CONST.MAX_CASCADE_STEPS) { STATE.setGravityActive(false); return; }
+        let stillFalling = false;
+        for (let y = 0; y < CONST.TOTAL_ROWS; y++) {
+          for (let x = 0; x < CONST.COLS; x++) {
+            let cell = WORLD.grid[y][x];
+            if (cell && typeof cell === 'object' && cell.renderOffsetY < 0) {
+              if (cell.fallDelay > 0) { cell.fallDelay -= dt; stillFalling = true; }
+              else {
+                cell.renderOffsetY += CONST.ANIM_FALL_SPEED * dt;
+                if (cell.renderOffsetY >= 0) cell.renderOffsetY = 0; else stillFalling = true;
+              }
+            }
+          }
+        }
+        if (STATE.cascadePhase === "fall_setup") {
+          if (COLLAPSE.setupGravity() || stillFalling) STATE.setCascadePhase("falling"); else STATE.setCascadePhase("erase_setup");
+        } else if (STATE.cascadePhase === "falling") {
+          if (!stillFalling) STATE.setCascadePhase("erase_setup");
+        } else if (STATE.cascadePhase === "erase_setup") {
+          if (!STATE.debugPauseCracking && COLLAPSE.flagErase()) STATE.setCascadePhase("cracking"); else STATE.setCascadePhase("limit");
+        } else if (STATE.cascadePhase === "cracking") {
+          let stillCracking = false;
+          for (let y = 0; y < CONST.TOTAL_ROWS; y++) {
+            for (let x = 0; x < CONST.COLS; x++) {
+              let cell = WORLD.grid[y][x];
+              if (cell && typeof cell === 'object' && cell.state === 'cracking') {
+                let timerKey = cell.type === 'bomb' ? 'crackTimer' : 'timer';
+                cell[timerKey] -= dt;
+                if (cell[timerKey] <= 0) {
+                  EFFECTS.spawnParticles(x, y, cell.type === 'bomb' ? "#555555" : CONST.COLORS[cell.color]);
+                  WORLD.grid[y][x] = 0;
+                } else stillCracking = true;
+              }
+            }
+          }
+          if (!stillCracking) STATE.setCascadePhase("fall_setup");
+        } else if (STATE.cascadePhase === "limit") {
+          if (COLLAPSE.applyLimit()) { COLLAPSE.triggerLimitWarning(); STATE.setCascadePhase("cracking"); }
+          else { if (COLLAPSE.isBoardStable()) STATE.setGravityActive(false); STATE.setCascadePhase("fall_setup"); }
+        }
+      },
+      triggerLimitWarning: () => {
+        if (STATE.floodPhase !== "countdown" && STATE.elapsed >= STATE.limitWarningUntil) STATE.setLimitWarningUntil(STATE.elapsed + CONST.LIMIT_WARNING_SEC);
+      }
+    });
+
+    // =========================
+    // entities/block.js
+    // =========================
+    Object.assign(BLOCK, {
+      pair: null, drop: 0, fast: false,
+      setPair: (p) => BLOCK.pair = p,
+      setDrop: (d) => BLOCK.drop = d,
+      addDrop: (d) => BLOCK.drop += d,
+      setFast: (f) => BLOCK.fast = f,
+      getShapeOffsets: (size, rot) => {
+        const base = [[0, 0]];
+        if (size >= 2) base.push([0, -1]);
+        if (size >= 3) base.push([1, 0]);
+        if (size >= 4) base.push([1, -1]);
+        return base.map(([bx, by]) => {
+          if (rot === 0) return [bx, by]; if (rot === 1) return [-by, bx]; if (rot === 2) return [-bx, -by]; if (rot === 3) return [by, -bx];
+        });
+      },
+      newPair: () => {
+        let size = 2; const r = Math.random();
+        if (r < CONST.BLOCK_SIZE_PROB_2) size = 2; else if (r < CONST.BLOCK_SIZE_PROB_3) size = 3; else size = 4;
+        const c = [], cracked = [];
+        for (let i = 0; i < size; i++) { c.push(Math.floor(Math.random() * CONST.BLOCK_TYPES) + 1); cracked.push(Math.random() < CONST.CRACKED_BLOCK_PROBABILITY); }
+        return { x: CONST.BLOCK_INITIAL_X, y: Math.floor(WORLD.cameraY), rot: 0, size, c, cracked, rx: CONST.BLOCK_INITIAL_X, ry: Math.floor(WORLD.cameraY), rrot: 0 };
+      },
+      blocks: (p) => BLOCK.getShapeOffsets(p.size, p.rot).map((off, i) => ({ x: p.x + off[0], y: p.y + off[1], c: p.c[i], isCracked: p.cracked[i] })),
+      renderBlocks: (p) => {
+        const angle = p.rrot * Math.PI / 2, sin = Math.sin(angle), cos = Math.cos(angle), base = [[0, 0]];
+        if (p.size >= 2) base.push([0, -1]); if (p.size >= 3) base.push([1, 0]); if (p.size >= 4) base.push([1, -1]);
+        return base.map(([bx, by], i) => ({ x: p.rx + bx * cos - by * sin, y: p.ry + bx * sin + by * cos, c: p.c[i], isCracked: p.cracked[i] }));
+      },
+      updatePairRender: () => {
+        if (!BLOCK.pair) return; BLOCK.pair.rx += (BLOCK.pair.x - BLOCK.pair.rx) * CONST.PAIR_MOVE_LERP; BLOCK.pair.ry += (BLOCK.pair.y - BLOCK.pair.ry) * CONST.PAIR_FALL_LERP;
+        let diff = BLOCK.pair.rot - BLOCK.pair.rrot; if (diff > 2) diff -= 4; if (diff < -2) diff += 4;
+        BLOCK.pair.rrot += diff * CONST.PAIR_ROT_LERP; if (BLOCK.pair.rrot < 0) BLOCK.pair.rrot += 4; if (BLOCK.pair.rrot >= 4) BLOCK.pair.rrot -= 4;
+      },
+      hit: (bs) => {
+        for (let b of bs) {
+          if (b.x < 0 || b.x >= CONST.COLS || b.y >= CONST.TOTAL_ROWS) return true; if (b.y < 0) continue;
+          let visualTop = CONST.TOTAL_ROWS;
+          for (let y = 0; y < CONST.TOTAL_ROWS; y++) {
+            let cell = WORLD.grid[y][b.x];
+            if (cell) { let offset = (typeof cell === 'object' && cell.renderOffsetY) ? cell.renderOffsetY : 0; visualTop = y + offset; break; }
+          }
+          if (b.y + 1 > visualTop + CONST.BLOCK_HIT_THRESHOLD) return true;
+        }
+        return false;
+      },
+      merge: () => {
+        for (let b of BLOCK.blocks(BLOCK.pair)) if (b.y >= 0) WORLD.grid[b.y][b.x] = { type: 'block', color: b.c, isCracked: b.isCracked, renderOffsetY: 0, fallDelay: 0 };
+        if (COLLAPSE.applyLimit()) COLLAPSE.triggerLimitWarning();
+      }
+    });
+
+    // =========================
+    // entities/human.js
+    // =========================
+    class Human {
+      constructor(id, x, y, isVIP = false) {
+        this.id = id; this.x = x; this.y = y; this.vx = 0; this.vy = 0; this.state = 'walk'; this.climbFlag = false;
+        this.speechTimer = 0; this.speechText = ""; this.speechCooldown = 0; this.aiTimer = 0; this.timer = 0;
+        this.isVIP = isVIP; this.dir = Math.random() < 0.5 ? -1 : 1; this.animTime = Math.random() * 10;
+        this.lastClimbTime = STATE.elapsed; this.attachedBlock = null; this.goalSubState = 0; this.hasNoticedCrack = false;
+        this.deathType = null; this.deathTimer = 0; this.deathParts = []; this.skullTimer = 0; this.isDead = false;
+      }
+      getStandingY(gx, fromY) {
+        if (gx < 0 || gx >= CONST.COLS) return CONST.TOTAL_ROWS * CONST.SIZE;
+        for (let y = 0; y < CONST.TOTAL_ROWS; y++) {
+          let cell = WORLD.grid[y][gx];
+          if (cell) {
+            let offset = (typeof cell === 'object' && cell.renderOffsetY) ? cell.renderOffsetY : 0;
+            let cellY = (y + offset) * CONST.SIZE;
+            if (cellY >= fromY - CONST.HUMAN_STANDING_CHECK_OFFSET) return cellY;
+          }
+        }
+        return CONST.TOTAL_ROWS * CONST.SIZE;
+      }
+      getDanger() {
+        for (let b of STATE.fallingBombs) if (Math.abs(b.x * CONST.SIZE - this.x) <= 2.5 * CONST.SIZE && Math.abs(b.y * CONST.SIZE - this.y) <= 2.5 * CONST.SIZE) return true;
+        let gx = Math.round((this.x - CONST.OFFSET_X) / CONST.SIZE), gy = Math.floor(this.y / CONST.SIZE);
+        for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
+          let nx = gx + dx, ny = gy + dy;
+          if (nx >= 0 && nx < CONST.COLS && ny >= 0 && ny < CONST.TOTAL_ROWS) {
+            let cell = WORLD.grid[ny][nx]; if (cell && (cell === 9 || (typeof cell === 'object' && cell.type === 'bomb'))) return true;
+          }
+        }
+        return (WORLD.waterWorldY() * CONST.SIZE - this.y <= CONST.HUMAN_DANGER_WATER_M * (CONST.SIZE / CONST.METERS_PER_ROW));
+      }
+      onBlockBroken(bx, by) {
+        let gx = Math.round((this.x - CONST.OFFSET_X) / CONST.SIZE), gy = Math.floor(this.y / CONST.SIZE);
+        let feetGy = Math.floor((this.y + CONST.HUMAN_LOGICAL_SIZE - CONST.HUMAN_STANDING_CHECK_OFFSET + 3) / CONST.SIZE);
+        if (bx === gx && (by === gy || by === feetGy || by === feetGy + 1) && this.state !== 'fall') {
+          this.state = 'fall'; this.vx = 0; this.say("DANGER"); this.climbFlag = false;
+        }
+      }
+      onBlockMove(bx, oldBy, newBy) {
+        let gx = Math.round((this.x - CONST.OFFSET_X) / CONST.SIZE); if (bx !== gx) return;
+        let gy = Math.floor(this.y / CONST.SIZE), feetGy = Math.floor((this.y + CONST.HUMAN_LOGICAL_SIZE - 2) / CONST.SIZE);
+        if (this.state === 'climb' && (gy === oldBy || gy === oldBy + 1)) this.attachedBlock = { x: bx, y: newBy, relativeY: this.y - oldBy * CONST.SIZE };
+        else if ((gy === oldBy || feetGy === oldBy) && this.state !== 'fall') { this.state = 'fall'; this.fallStartY = this.y; this.climbFlag = false; }
+      }
+      think() {
+        let gx = Math.max(0, Math.min(CONST.COLS - 1, Math.round((this.x - CONST.OFFSET_X) / CONST.SIZE)));
+        let waterY = WORLD.waterWorldY() * CONST.SIZE;
+        if (this.y > waterY) {
+          if (this.state !== 'drown' && this.state !== 'goal') { this.state = 'drown'; this.timer = CONST.HUMAN_DROWN_DEATH_SEC; this.say("DROWNING"); }
+          else if (this.state === 'drown' && this.timer <= 0) this.die('drown');
+          if (this.state !== 'goal') return;
+        }
+        if (this.state === 'goal') return;
+        if (this.state === 'shock') { this.timer -= CONST.HUMAN_TICK_DELTA; if (this.timer <= 0) { this.state = 'walk'; this.dir = Math.random() < 0.5 ? -1 : 1; this.vx = this.dir * CONST.HUMAN_SPEED_WALK * CONST.SIZE; this.hasNoticedCrack = false; } return; }
+        if (this.state === 'climb_cracked') {
+          let gy = Math.floor((this.y + CONST.HUMAN_LOGICAL_SIZE / 2) / CONST.SIZE);
+          let cell = WORLD.grid[gy] ? WORLD.grid[gy][gx] : null;
+          if (!cell || !cell.isCracked) { this.state = 'fall'; return; }
+          if (this.y <= gy * CONST.SIZE + CONST.SIZE * CONST.HUMAN_CELL_CENTER_THRESHOLD) { WORLD.grid[gy][gx] = null; this.state = 'fall'; this.vy = 0; COLLAPSE.applyLimit(); return; }
+          this.vy = -CONST.HUMAN_SPEED_CLIMB * CONST.SIZE; return;
+        }
+        if (this.state === 'fell_over') { if (this.timer <= 0 || this.getDanger()) this.state = 'walk'; else return; }
+        let feetY = this.y + CONST.HUMAN_LOGICAL_SIZE, standingY = CONST.TOTAL_ROWS * CONST.SIZE, wallY = -1, wallCanClimb = false;
+        for (let r = 0; r < CONST.TOTAL_ROWS; r++) {
+          let cell = WORLD.grid[r][gx]; if (cell) {
+            let cellY = r * CONST.SIZE, props = CONST.BLOCK_PROPERTIES[(typeof cell === 'object') ? cell.color : cell] || { canClimb: 1 };
+            if (cellY < feetY && cellY + CONST.SIZE > this.y) { if (props.canClimb && !cell.isCracked) { wallY = cellY; wallCanClimb = true; } else if (cell.isCracked && this.state === 'walk') { this.onEncounterCrack(); return; } }
+            if (cellY >= feetY - 2) standingY = Math.min(standingY, cellY);
+          }
+        }
+        if (this.state !== 'climb' && feetY < standingY - CONST.HUMAN_FALL_THRESHOLD_SIZE && this.state !== 'fall') { this.state = 'fall'; this.fallStartY = this.y; this.vx = 0; this.say("FALLING"); }
+        if (this.state === 'fall' && feetY >= standingY) { this.state = 'walk'; this.say("LANDED"); this.y = standingY - CONST.HUMAN_LOGICAL_SIZE; this.vy = 0; return; }
+        let isDanger = this.getDanger(), speedMult = isDanger ? CONST.HUMAN_SPEED_ESCAPE : CONST.HUMAN_SPEED_WALK;
+        if (Math.max(0, (CONST.TOTAL_ROWS - STATE.renderSafeLine - 2) * CONST.METERS_PER_ROW) - (CONST.TOTAL_ROWS - (this.y / CONST.SIZE) - 1) * CONST.METERS_PER_ROW >= 30) speedMult = CONST.HUMAN_SPEED_FAST_CLIMB;
+        if (this.state === 'climb') {
+          this.lastClimbTime = STATE.elapsed;
+          if (wallY === -1 || !wallCanClimb) { this.state = 'walk'; this.climbFlag = false; this.vy = 0; }
+          else if (this.y <= wallY - CONST.HUMAN_LOGICAL_SIZE + CONST.HUMAN_STANDING_SEARCH_OFFSET) { this.y = wallY - CONST.HUMAN_LOGICAL_SIZE; this.state = 'walk'; this.climbFlag = false; this.vy = 0; }
+          else this.vy = -speedMult * CONST.SIZE; return;
+        }
+        if (wallY !== -1) {
+          if (wallCanClimb) { if (Math.abs(this.x - (gx * CONST.SIZE + CONST.OFFSET_X + CONST.SIZE / 2)) <= CONST.SIZE * CONST.HUMAN_BLOCK_CENTER_RANGE_RATIO) { this.state = 'climb'; this.climbFlag = true; this.vx = 0; this.vy = -speedMult * CONST.SIZE; return; } }
+          else { if (Math.random() < CONST.HUMAN_CANT_CLIMB_CHANCE) this.say("CANT_CLIMB"); if (this.state === 'walk') { this.dir *= -1; this.vx = this.dir * speedMult * CONST.SIZE; } }
+        }
+        if (this.state === 'walk' || this.state === 'escape') {
+          let nx = Math.max(0, Math.min(CONST.COLS - 1, Math.round((this.x + this.dir * CONST.SIZE * CONST.HUMAN_LOOK_AHEAD_RATIO - CONST.OFFSET_X) / CONST.SIZE)));
+          if (this.getStandingY(nx, feetY) > feetY + CONST.HUMAN_LEDGE_HEIGHT_THRESHOLD_SIZE) {
+            if (this.state === 'escape') { if (Math.random() >= CONST.HUMAN_SLIP_CHANCE) { this.dir *= -1; this.vx = this.dir * speedMult * CONST.SIZE; } }
+            else { this.dir *= -1; this.vx = this.dir * speedMult * CONST.SIZE; }
+          }
+        }
+        if (waterY - feetY > 0 && waterY - feetY < CONST.SIZE * 3 && Math.random() < CONST.HUMAN_FLOOD_NEAR_CHANCE) this.say("FLOOD_NEAR");
+        if (STATE.elapsed - this.lastClimbTime > CONST.HUMAN_LOST_SEC && (this.state === 'walk' || this.state === 'escape')) { this.state = 'lost'; this.say("LOST"); }
+        if (this.state === 'lost' && (STATE.elapsed - this.lastClimbTime < CONST.HUMAN_LOST_SEC || (wallY !== -1 && wallCanClimb))) { if (wallY !== -1 && wallCanClimb) { this.speechCooldown = 0; this.say("FOUND_PATH"); } this.state = 'walk'; this.lastClimbTime = STATE.elapsed; }
+        if (isDanger) {
+          this.state = 'escape'; this.lastClimbTime = STATE.elapsed; if (Math.random() < CONST.HUMAN_FELL_OVER_CHANCE) { this.state = 'fell_over'; this.timer = CONST.HUMAN_FALL_OVER_SEC; this.say("FELL_OVER"); return; }
+          this.vx = this.dir * speedMult * CONST.SIZE; this.vy = 0;
+        } else if (this.state !== 'fall') {
+          if (this.state !== 'lost') this.state = 'walk'; this.vy = 0; if (Math.random() < CONST.HUMAN_RANDOM_WALK_DIR_CHANCE) this.dir *= -1; else if (Math.random() < CONST.HUMAN_RANDOM_WALK_STOP_CHANCE) this.vx = 0; else this.vx = this.dir * speedMult * CONST.SIZE;
+        }
+      }
+      applyVelocity(dt) {
+        let mult = (STATE.state === "goal_wait") ? 2.0 : 1.0;
+        if (this.attachedBlock) {
+          let cell = WORLD.grid[this.attachedBlock.y][this.attachedBlock.x];
+          if (cell && typeof cell === 'object' && cell.renderOffsetY !== undefined) { this.y = (this.attachedBlock.y + cell.renderOffsetY) * CONST.SIZE + this.attachedBlock.relativeY; if (cell.renderOffsetY >= 0) this.attachedBlock = null; }
+          else this.attachedBlock = null;
+        }
+        if (this.state === 'fall' || this.state === 'drown') { this.vy += CONST.GRAVITY_ACCEL * CONST.SIZE * dt; this.vx = 0; if (this.state === 'drown') { let wy = WORLD.waterWorldY() * CONST.SIZE; if (this.y > wy) { this.y = wy; this.vy = 0; } } }
+        else if (this.state !== 'climb' && !this.attachedBlock) {
+          let gx = Math.max(0, Math.min(CONST.COLS - 1, Math.round((this.x - CONST.OFFSET_X) / CONST.SIZE))), feetY = this.y + CONST.HUMAN_LOGICAL_SIZE, sy = this.getStandingY(gx, feetY);
+          if (this.vy >= 0 && feetY >= sy - 5) {
+            if (this.state === 'fall') { if ((this.y - this.fallStartY) / CONST.SIZE >= CONST.HUMAN_FALL_DEATH_HEIGHT) { this.die('fall'); return; } this.state = 'walk'; this.say("LANDED"); }
+            this.y = sy - CONST.HUMAN_LOGICAL_SIZE; this.vy = 0;
+          }
+        }
+        this.x += this.vx * dt * mult; this.y += this.vy * dt * mult;
+        if (this.x < CONST.OFFSET_X) { this.x = CONST.OFFSET_X; this.dir = 1; } if (this.x > CONST.OFFSET_X + (CONST.COLS - 1) * CONST.SIZE) { this.x = CONST.OFFSET_X + (CONST.COLS - 1) * CONST.SIZE; this.dir = -1; }
+      }
+      update(dt) {
+        this.animTime += dt; if (this.isDead) { this.updateDeath(dt); return; }
+        this.aiTimer -= dt; if (this.speechTimer > 0) this.speechTimer -= dt; if (this.speechCooldown > 0) this.speechCooldown -= dt; if (this.timer > 0) this.timer -= dt;
+        if (this.state === 'goal') { this.timer -= dt; if (this.timer <= 0) { this.timer = CONST.HUMAN_GOAL_SUBSTATE_SEC; this.goalSubState = (this.goalSubState + 1) % 5; if (Math.random() < 0.2) this.say("GOAL"); } }
+        if (this.aiTimer <= 0) { this.think(); this.aiTimer = CONST.HUMAN_AI_TICK_MIN + Math.random() * (CONST.HUMAN_AI_TICK_MAX - CONST.HUMAN_AI_TICK_MIN); }
+        this.applyVelocity(dt);
+      }
+      onEncounterCrack() { this.state = 'shock'; this.timer = CONST.HUMAN_SHOCK_SEC; this.vx = 0; this.vy = 0; this.hasNoticedCrack = true; this.say("CRACKED"); }
+      die(type) {
+        if (this.isDead) return; this.isDead = true; this.state = 'dead'; this.deathType = type; this.deathTimer = CONST.HUMAN_DEATH_FADE_SEC; this.vx = 0; this.vy = 0;
+        if (type === 'bomb') for (let i = 0; i < 5; i++) { let a = (Math.random() * 360) * Math.PI / 180, s = (3 + Math.random() * 5) * CONST.SIZE; if (i < 2) { a = (-45 + (Math.random() - 0.5) * 30) * Math.PI / 180; s = 10 * CONST.SIZE; } this.deathParts.push({ x: 0, y: 0, vx: Math.cos(a) * s, vy: Math.sin(a) * s, rot: Math.random() * Math.PI * 2, vrot: (Math.random() - 0.5) * CONST.EXPLOSION_GRAVITY }); }
+        this.checkWitnessDeath(); STATE.deadHumans.push({ x: this.x, y: this.y, type });
+      }
+      checkWitnessDeath() {
+        for (let h of STATE.humans) { if (h === this || h.isDead) continue; let dx = h.x - this.x, dy = h.y - this.y; if (Math.sqrt(dx * dx + dy * dy) / CONST.SIZE < CONST.HUMAN_DEATH_REACTION_DIST) { h.state = 'escape'; h.dir = dx > 0 ? 1 : -1; h.vx = h.dir * CONST.HUMAN_SPEED_ESCAPE * CONST.SIZE; h.say("FEAR"); h.timer = 2.0; } }
+      }
+      updateDeath(dt) {
+        if (this.deathTimer > 0) {
+          this.deathTimer -= dt; if (this.deathType === 'bomb') for (let p of h.deathParts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += CONST.EXPLOSION_GRAVITY * CONST.SIZE * dt; p.rot += p.vrot * dt; }
+          else if (this.deathType === 'drown') this.y += CONST.DROWN_SINK_SPEED * CONST.SIZE * dt;
+          if (this.deathTimer <= 0) this.skullTimer = CONST.HUMAN_DEATH_SKULL_SEC;
+        } else if (this.skullTimer > 0) this.skullTimer -= dt;
+      }
+      say(key) {
+        if (this.speechCooldown > 0) return; let gx = Math.round((this.x - CONST.OFFSET_X) / CONST.SIZE), gy = Math.round(this.y / CONST.HUMAN_LOGICAL_SIZE);
+        for (let h of STATE.humans) if (h.id < this.id && Math.abs(Math.round((h.x - CONST.OFFSET_X) / CONST.SIZE) - gx) <= 1 && Math.abs(Math.round(h.y / CONST.HUMAN_LOGICAL_SIZE) - gy) <= 1) return;
+        let texts = HUMAN_TEXT_JP.SPEECH[key]; if (!texts) return; this.speechText = texts[Math.floor(Math.random() * texts.length)]; this.speechTimer = CONST.HUMAN_SPEECH_SEC; this.speechCooldown = CONST.HUMAN_SPEECH_SEC * 2 + Math.random();
+      }
+    }
+
+    // =========================
+    // core/effects.js
+    // =========================
+    Object.assign(EFFECTS, {
+      updateRain: (dt) => {
+        if (STATE.currentPhase === 0) { STATE.setRainParticles([]); return; }
+        let mult = [0, CONST.RAIN_MULTIPLIER_PHASE1, CONST.RAIN_MULTIPLIER_PHASE2, CONST.RAIN_MULTIPLIER_PHASE3, CONST.RAIN_MULTIPLIER_PHASE4][STATE.currentPhase];
+        if (STATE.rainParticles.length < CONST.RAIN_COUNT_BASE * mult && Math.random() < 0.5) STATE.rainParticles.push({ x: Math.random() * CONST.TOTAL_W, y: CONST.RAIN_START_Y, v: CONST.RAIN_SPEED_MIN + Math.random() * CONST.RAIN_SPEED_RANGE, len: CONST.RAIN_LEN_MIN + Math.random() * CONST.RAIN_LEN_RANGE });
+        STATE.rainParticles.forEach(p => { p.y += p.v; p.x += CONST.RAIN_SLANT; });
+        STATE.setRainParticles(STATE.rainParticles.filter(p => p.y < CONST.MAIN_H));
+      },
+      updateThunder: (dt) => {
+        if (STATE.currentPhase < 3) { STATE.setThunderFlashTimer(0); return; }
+        let interval = (STATE.currentPhase === 3) ? CONST.THUNDER_INTERVAL_PHASE3 : CONST.THUNDER_INTERVAL_PHASE4;
+        if (Math.floor(STATE.elapsed / interval) > Math.floor((STATE.elapsed - dt) / interval)) STATE.setThunderFlashTimer(CONST.THUNDER_FLASH_DURATION);
+        if (STATE.thunderFlashTimer > 0) STATE.setThunderFlashTimer(STATE.thunderFlashTimer - dt);
+      },
+      updateShake: (dt) => {
+        if (STATE.currentPhase < 3) { STATE.setShakeOffset(0, 0); return; }
+        let intensity = (STATE.currentPhase === 3) ? CONST.SHAKE_INTENSITY_PHASE3 : CONST.SHAKE_INTENSITY_PHASE4;
+        let period = (STATE.currentPhase === 3) ? CONST.SHAKE_PERIOD_PHASE3 : CONST.SHAKE_PERIOD_PHASE4;
+        if (Math.floor(STATE.elapsed / period) > Math.floor((STATE.elapsed - dt) / period)) STATE.setShakeOffset((Math.random() - 0.5) * intensity * 2, (Math.random() - 0.5) * intensity * 2);
+      },
+      spawnParticles: (x, y, color) => {
+        for (let py = 0; py < CONST.PARTICLE_DIV; py++) for (let px = 0; px < CONST.PARTICLE_DIV; px++) {
+          const lx = (px + 0.5) / CONST.PARTICLE_DIV, ly = (py + 0.5) / CONST.PARTICLE_DIV;
+          STATE.particles.push({ x: x + lx, y: y + ly, vx: (lx - 0.5) * CONST.PARTICLE_SPEED + (Math.random() - 0.5) * CONST.PARTICLE_RAND_VX, vy: Math.abs(ly - 0.5) * CONST.PARTICLE_SPEED * CONST.PARTICLE_RAND_VY_RATIO + Math.random() * CONST.PARTICLE_RAND_VY_ADD, life: CONST.PARTICLE_LIFE + Math.random() * CONST.PARTICLE_LIFE_RANGE, maxLife: CONST.PARTICLE_LIFE + CONST.PARTICLE_LIFE_RANGE, c: color, size: CONST.PARTICLE_SIZE });
+        }
+      },
+      updateParticles: () => {
+        STATE.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += CONST.PARTICLE_GRAVITY; p.vx *= CONST.PARTICLE_FRICTION; p.vy *= CONST.PARTICLE_FRICTION; p.life--; });
+        STATE.setParticles(STATE.particles.filter(p => p.life > 0));
+      },
+      spawnClearCelebration: () => {
+        const colors = ["#ff4d4d", "#ffd54f", "#66e066", "#66b3ff", "#ff7ad9", "#ffffff"];
+        for (let i = 0; i < CONST.CONFETTI_COUNT; i++) {
+          const a = Math.random() * Math.PI * 2, sp = CONST.CONFETTI_SPEED_MIN + Math.random() * CONST.CONFETTI_SPEED_RANGE;
+          STATE.confetti.push({ x: CONST.OFFSET_X + (CONST.COLS * CONST.SIZE) / 2, y: CONST.CLEAR_CELEB_Y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp + CONST.CONFETTI_VY_OFFSET, g: CONST.CONFETTI_G_MIN + Math.random() * CONST.CONFETTI_G_RANGE, r: Math.random() * Math.PI * 2, vr: (Math.random() - 0.5) * CONST.CONFETTI_VR_RANGE, w: CONST.CONFETTI_W_MIN + Math.random() * CONST.CONFETTI_W_RANGE, h: CONST.CONFETTI_H_MIN + Math.random() * CONST.CONFETTI_H_RANGE, c: colors[(Math.random() * colors.length) | 0], life: CONST.CONFETTI_LIFE_MIN + Math.random() * CONST.CONFETTI_LIFE_RANGE });
+        }
+      },
+      updateCelebrationEffects: () => {
+        STATE.confetti.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += p.g; p.vx *= CONST.CONFETTI_FRICTION; p.r += p.vr; p.life--; });
+        STATE.setConfetti(STATE.confetti.filter(p => p.life > 0 && p.y < CONST.CONFETTI_Y_LIMIT));
+      }
+    });
+
+    // =========================
+    // render/humanRenderer.js
+    // =========================
+    Object.assign(RENDER, {
+      humanAtlas: null, speechSprites: {},
+      initHumanAtlas: () => {
+        const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128; const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#000000'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(6, 6, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(16, 3, 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(22, 3, 2, Math.PI, 0); ctx.lineTo(24, 3); ctx.lineTo(20, 3); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(30, 4, 1.5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        const texts = ["Σ"]; Object.values(HUMAN_TEXT_JP.SPEECH).forEach(list => texts.push(...list));
+        let curX = 0, curY = 20; const fs = CONST.HUMAN_RENDER_CONFIG.SPEECH_FONT_SIZE; ctx.font = `bold ${fs}px sans-serif`; ctx.textAlign = "left"; ctx.textBaseline = "top";
+        texts.forEach(t => {
+          const sigma = t === "Σ", full = sigma ? t : `＼${t}／`, m = ctx.measureText(full), w = Math.ceil(m.width) + 8, h = (sigma ? CONST.HUMAN_RENDER_CONFIG.SIGMA_SIZE : fs) + 8;
+          if (curX + w > 256) { curX = 0; curY += h; }
+          ctx.save(); ctx.translate(curX + w/2, curY + h/2); if (sigma) ctx.rotate(CONST.HUMAN_RENDER_CONFIG.SIGMA_ROTATION * Math.PI / 180);
+          ctx.strokeStyle = "#000"; ctx.lineWidth = 2; ctx.strokeText(full, -w/2 + 4, -h/2 + 4); ctx.fillStyle = "#FFF"; ctx.fillText(full, -w/2 + 4, -h/2 + 4); ctx.restore();
+          RENDER.speechSprites[t] = {x: curX, y: curY, w, h}; curX += w;
+        });
+        RENDER.humanAtlas = cv;
+      },
+      drawHumans: (ctx, screenYOffset, humansList = null) => {
+        if (!RENDER.humanAtlas) RENDER.initHumanAtlas();
+        let list = (humansList || STATE.humans).sort((a, b) => (a.y + (a.state === 'climb' ? 0.1 : 0)) - (b.y + (b.state === 'climb' ? 0.1 : 0)));
+        const P_BODY = {x: 0, y: 0, w: 12, h: 12}, P_HAND = {x: 12, y: 0, w: 8, h: 8}, P_FOOT_N = {x: 20, y: 0, w: 4, h: 4}, P_FOOT_C = {x: 26, y: 0, w: 8, h: 10}, cfg = CONST.HUMAN_RENDER_CONFIG, br = CONST.SIZE * CONST.HUMAN_RADIUS;
+        const drawPart = (pt, dx, dy, dw, dh) => ctx.drawImage(RENDER.humanAtlas, pt.x, pt.y, pt.w, pt.h, dx, dy, dw, dh);
+        for (let h of list) {
+          ctx.save(); ctx.globalAlpha = h.isDead ? Math.max(0, h.deathTimer / CONST.HUMAN_DEATH_FADE_SEC) : 1.0; ctx.translate(h.x, (h.y + CONST.HUMAN_LOGICAL_SIZE) - screenYOffset);
+          let t = h.animTime * 10;
+          if (h.state === 'walk' || h.state === 'escape' || h.state === 'lost') {
+            let s = h.state === 'escape' ? 2 : 1, b = Math.abs(Math.sin(t * s)) * cfg.BOUNCE_AMP, f1 = Math.sin(t * s) * 2, f2 = Math.sin(t * s + Math.PI) * 2;
+            drawPart(P_HAND, -br - cfg.HAND_X_OFF, br * cfg.HAND_Y_OFF_B - b, cfg.HAND_SIZE, cfg.HAND_SIZE); drawPart(P_HAND, br - cfg.HAND_X_OFF/2, br * cfg.HAND_Y_OFF_B - b, cfg.HAND_SIZE, cfg.HAND_SIZE);
+            drawPart(P_BODY, -br, -br*2 - b, br*2 * (cfg.BODY_SIZE_RATIO/2), br*2 * (cfg.BODY_SIZE_RATIO/2));
+            drawPart(P_FOOT_N, -br/2 - cfg.FOOT_X_OFF, cfg.FOOT_Y_OFF + f1, cfg.FOOT_W, cfg.FOOT_H); drawPart(P_FOOT_N, br/2 - cfg.FOOT_X_OFF, cfg.FOOT_Y_OFF + f2, cfg.FOOT_W, cfg.FOOT_H);
+            if ((h.state === 'escape' || h.state === 'lost') && Math.sin(t) > 0) { ctx.save(); ctx.translate(br * cfg.SWEAT_X_OFF, br * cfg.SWEAT_Y_OFF); ctx.rotate(cfg.SWEAT_ROTATION * Math.PI / 180); ctx.font = "12px sans-serif"; ctx.fillText(cfg.SWEAT_TEXT, 0, 0); ctx.restore(); }
+          } else if (h.state === 'shock') {
+            drawPart(P_HAND, -br - cfg.HAND_X_OFF, br * cfg.HAND_Y_OFF_B, cfg.HAND_SIZE, cfg.HAND_SIZE); drawPart(P_HAND, br - cfg.HAND_X_OFF/2, br * cfg.HAND_Y_OFF_B, cfg.HAND_SIZE, cfg.HAND_SIZE);
+            drawPart(P_BODY, -br, -br*2, br*2 * (cfg.BODY_SIZE_RATIO/2), br*2 * (cfg.BODY_SIZE_RATIO/2));
+            drawPart(P_FOOT_N, -br/2 - cfg.FOOT_X_OFF, cfg.FOOT_Y_OFF, cfg.FOOT_W, cfg.FOOT_H); drawPart(P_FOOT_N, br/2 - cfg.FOOT_X_OFF, cfg.FOOT_Y_OFF, cfg.FOOT_W, cfg.FOOT_H);
+            let sp = RENDER.speechSprites["Σ"]; if (sp) ctx.drawImage(RENDER.humanAtlas, sp.x, sp.y, sp.w, sp.h, -sp.w/2, -br*4, sp.w, sp.h);
+          } else if (h.isDead) {
+            if (h.deathTimer > 0) {
+              if (h.deathType === 'bomb') for (let p of h.deathParts) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); drawPart(P_BODY, -br/2, -br/2, br, br); ctx.restore(); }
+              else if (h.deathType === 'drown') { ctx.filter = 'brightness(0.3)'; drawPart(P_BODY, -br, -br*2, br*2 * (cfg.BODY_SIZE_RATIO/2), br*2 * (cfg.BODY_SIZE_RATIO/2)); ctx.filter = 'none'; }
+              else if (h.deathType === 'fall') { ctx.scale(1.5, Math.max(0.1, h.deathTimer / CONST.HUMAN_DEATH_FADE_SEC)); drawPart(P_BODY, -br, -br*2, br*2 * (cfg.BODY_SIZE_RATIO/2), br*2 * (cfg.BODY_SIZE_RATIO/2)); if (h.deathTimer > CONST.HUMAN_DEATH_FADE_SEC * 0.7) { ctx.fillStyle = "rgba(200,200,200,0.5)"; for(let i=0; i<3; i++) { ctx.beginPath(); ctx.arc((i-1)*10, -10, 8, 0, Math.PI*2); ctx.fill(); } } }
+            }
+            if (h.skullTimer > 0) { ctx.globalAlpha = h.skullTimer / CONST.HUMAN_DEATH_SKULL_SEC; ctx.font = `bold ${(1.0 + (1.0 - ctx.globalAlpha)) * CONST.SIZE}px sans-serif`; ctx.textAlign = "center"; ctx.fillText("💀", 0, -(1.0 - ctx.globalAlpha) * CONST.SIZE * 3); }
+          } else if (h.state === 'climb' || h.state === 'climb_cracked') {
+            let sw = Math.sin(t * 1.5) * cfg.SWAY_AMP, f1 = Math.sin(t * 1.5) * 4, f2 = Math.sin(t * 1.5 + Math.PI) * 4;
+            drawPart(P_HAND, -br - cfg.CLIMB_HAND_X_OFF + sw, br * cfg.CLIMB_HAND_Y_OFF + f2, cfg.HAND_SIZE, cfg.HAND_SIZE); drawPart(P_HAND, br - cfg.CLIMB_HAND_X_OFF*2 + sw, br * cfg.CLIMB_HAND_Y_OFF + f1, cfg.HAND_SIZE, cfg.HAND_SIZE);
+            drawPart(P_BODY, -br + sw, -br*2, br*2 * (cfg.BODY_SIZE_RATIO/2), br*2 * (cfg.BODY_SIZE_RATIO/2));
+            drawPart(P_FOOT_C, -br/2 - cfg.CLIMB_FOOT_X_OFF + sw, br * cfg.CLIMB_FOOT_Y_OFF + f1, cfg.CLIMB_FOOT_W, cfg.CLIMB_FOOT_H); drawPart(P_FOOT_C, br/2 - cfg.CLIMB_FOOT_X_OFF + sw, br * cfg.CLIMB_FOOT_Y_OFF + f2, cfg.CLIMB_FOOT_W, cfg.CLIMB_FOOT_H);
+            if (Math.sin(t*2) > 0) { ctx.save(); ctx.translate(br * cfg.SWEAT_X_OFF + sw, br * cfg.SWEAT_Y_OFF); ctx.rotate(cfg.SWEAT_ROTATION * Math.PI / 180); ctx.font = "10px sans-serif"; ctx.fillText(cfg.SWEAT_TEXT, 0, 0); ctx.restore(); }
+          } else if (h.state === 'fall' || h.state === 'drown') {
+            let fl = Math.sin(t * 3) > 0 ? -1 : 1;
+            drawPart(P_HAND, -br - cfg.FALL_HAND_X_OFF/2, -br*2 + fl*4, cfg.HAND_SIZE, cfg.HAND_SIZE); drawPart(P_HAND, br - 2, -br*2 - fl*4, cfg.HAND_SIZE, cfg.HAND_SIZE);
+            drawPart(P_BODY, -br, -br*2, br*2, br*2); drawPart(P_FOOT_N, -br/2 - cfg.FALL_FOOT_X_OFF/2 + fl*2, -2, cfg.FOOT_W, cfg.FOOT_H); drawPart(P_FOOT_N, br/2 - cfg.FALL_FOOT_X_OFF/2 - fl*2, -2, cfg.FOOT_W, cfg.FOOT_H);
+          } else if (h.state === 'fell_over') {
+            drawPart(P_HAND, -br - cfg.FELL_OVER_HAND_X_OFF/2, -br*0.5, cfg.HAND_SIZE, cfg.HAND_SIZE); drawPart(P_HAND, br - cfg.FELL_OVER_HAND_X_OFF/2, -br*0.5, cfg.HAND_SIZE, cfg.HAND_SIZE);
+            drawPart(P_BODY, -br, -br, br*2, br*2); drawPart(P_FOOT_N, -br/2 - cfg.FELL_OVER_FOOT_X_OFF/2, -br*1.5, cfg.FOOT_W, cfg.FOOT_H); drawPart(P_FOOT_N, br/2 - cfg.FELL_OVER_FOOT_X_OFF/2, -br*1.5, cfg.FOOT_W, cfg.FOOT_H);
+          } else if (h.state === 'goal') {
+            const sub = h.goalSubState || 0; let bc = 0, h1 = 0, h2 = 0, f1 = 0, f2 = 0;
+            if (sub === 1 || sub === 4) { bc = Math.abs(Math.sin(t * 2)) * 8; h1 = -br * 1.5; h2 = -br * 1.5; }
+            else if (sub === 0) h2 = -br * 1.5; else if (sub === 3) { bc = Math.abs(Math.sin(t)) * cfg.BOUNCE_AMP; f1 = Math.sin(t) * 4; f2 = -Math.sin(t) * 4; }
+            ctx.save(); if (sub === 2) ctx.scale(Math.cos(t * 0.8), 1); ctx.translate(0, -bc);
+            drawPart(P_HAND, -br - cfg.HAND_X_OFF, cfg.HAND_Y_OFF_B * br + h1, cfg.HAND_SIZE, cfg.HAND_SIZE); drawPart(P_HAND, br - cfg.HAND_X_OFF, cfg.HAND_Y_OFF_B * br + h2, cfg.HAND_SIZE, cfg.HAND_SIZE);
+            drawPart(P_BODY, -br, -br * 2, br * 2, br * 2); drawPart(P_FOOT_N, -br/2 - cfg.FOOT_X_OFF, cfg.FOOT_Y_OFF + f1, cfg.FOOT_W, cfg.FOOT_H); drawPart(P_FOOT_N, br/2 - cfg.FOOT_X_OFF, cfg.FOOT_Y_OFF + f2, cfg.FOOT_W, cfg.FOOT_H);
+            ctx.restore();
+          }
+          if (h.isVIP) { ctx.fillStyle = "gold"; ctx.fillRect(-4, -br*2 - 6, 8, 4); }
+          if (h.speechTimer > 0 && RENDER.speechSprites[h.speechText]) { const s = RENDER.speechSprites[h.speechText]; ctx.drawImage(RENDER.humanAtlas, s.x, s.y, s.w, s.h, -s.w/2, -br*2 - 15, s.w, h.speechTimer / 2.5 * s.h); }
+          else if (h.state === 'escape' && Math.random() < 0.1) { const s = RENDER.speechSprites["Σ"]; if (s) ctx.drawImage(RENDER.humanAtlas, s.x, s.y, s.w, s.h, cfg.SIGMA_OFFSET_X - s.w/2, -br + cfg.SIGMA_OFFSET_Y - s.h/2, s.w, s.h); }
+          ctx.restore();
+        }
+      }
+    });
+
+    // =========================
+    // render/renderer.js
+    // =========================
+    Object.assign(RENDER, {
+      canvas: document.getElementById("game"),
+      ctx: document.getElementById("game").getContext("2d"),
+      clouds: [],
+      resetClouds: () => {
+        RENDER.clouds = Array.from({ length: CONST.CLOUD_COUNT }, () => ({ x: Math.random() * CONST.CLOUD_RANDOM_X_MAX, y: Math.random() * CONST.TOTAL_ROWS, s: CONST.CLOUD_SIZE_MIN + Math.random() * CONST.CLOUD_SIZE_RANGE }));
+      },
+      screenY: (y) => (y - WORLD.cameraY) * CONST.SIZE,
+      radarYByMeters: (m) => {
+        const cl = Math.max(0, Math.min(CONST.GOAL_METERS, m)), it = CONST.RADAR_V_PAD, ib = CONST.RADAR_CANVAS_H - it, ih = Math.max(1, ib - it);
+        return ib - (cl / CONST.GOAL_METERS) * ih;
+      },
+      drawSkyAndClouds: (tctx, w, h, xOff, tw) => {
+        let br = 1.0; const dist = WORLD.heightMeters() - (WORLD.water * CONST.METERS_PER_ROW);
+        if (dist < CONST.DANGER_PROXIMITY_BLOCKS * CONST.METERS_PER_ROW) br = CONST.PROXIMITY_BRIGHTNESS_DROP;
+        if (STATE.floodPhase === "countdown") br *= (1.0 - (1.0 - Math.max(0, STATE.floodCountdownEnd - STATE.elapsed) / CONST.DANGER_COUNTDOWN_SECONDS) * 0.9);
+        else if (STATE.currentPhase === 2) br *= 0.8; else if (STATE.currentPhase === 3) br *= 0.7; else if (STATE.currentPhase === 4) br *= 0.6;
+        br = Math.max(0.1, br); const dc = (hex, f) => `rgb(${Math.floor(parseInt(hex.slice(1,3),16)*f)},${Math.floor(parseInt(hex.slice(3,5),16)*f)},${Math.floor(parseInt(hex.slice(5,7),16)*f)})`;
+        tctx.fillStyle = STATE.thunderFlashTimer > 0 ? "#FFF" : dc(CONST.SKY_TOP, br); tctx.fillRect(-50, -50, w + 100, h + 100);
+        tctx.save(); tctx.globalAlpha = CONST.CLOUD_ALPHA * br; const cg = Math.floor(255 * br); tctx.fillStyle = `rgb(${cg},${cg},${cg})`;
+        const now = performance.now() / 1000; for (const c of RENDER.clouds) {
+          const ww = Math.max(1, tw), wx = (c.x + now * CONST.CLOUD_DRIFT_PX_PER_SEC) % (ww + c.s * 2) - c.s, x = wx - xOff, y = (c.y - WORLD.cameraY * CONST.CLOUD_PARALLAX) * CONST.SIZE, py = y % (h + c.s * 4), cy = py - c.s * 2;
+          if (cy < -120 || cy > 600 || x < -c.s*2 || x > w + c.s*2) continue;
+          tctx.beginPath(); tctx.arc(x, cy, c.s * 0.55, 0, Math.PI * 2); tctx.arc(x + c.s * 0.55, cy + c.s * 0.05, c.s * 0.7, 0, Math.PI * 2); tctx.arc(x + c.s * 1.15, cy, c.s * 0.55, 0, Math.PI * 2); tctx.arc(x + c.s * 0.35, cy - c.s * 0.2, c.s * 0.5, 0, Math.PI * 2); tctx.arc(x + c.s * 0.9, cy - c.s * 0.22, c.s * 0.5, 0, Math.PI * 2); tctx.fill();
+        } tctx.restore();
+      },
+      drawRain: () => {
+        RENDER.ctx.save(); RENDER.ctx.strokeStyle = "rgba(200, 220, 255, 0.4)"; RENDER.ctx.lineWidth = 1;
+        STATE.rainParticles.forEach(p => { RENDER.ctx.beginPath(); RENDER.ctx.moveTo(p.x, p.y); RENDER.ctx.lineTo(p.x + p.len * 0.1, p.y + p.len); RENDER.ctx.stroke(); }); RENDER.ctx.restore();
+      },
+      drawWater: () => {
+        const wy = RENDER.screenY(WORLD.waterWorldY()); let amp = CONST.BASE_WAVE_AMPLITUDE;
+        if (WORLD.heightMeters() - (WORLD.water * CONST.METERS_PER_ROW) < CONST.DANGER_PROXIMITY_BLOCKS * CONST.METERS_PER_ROW) amp = CONST.DANGER_WAVE_AMPLITUDE;
+        if (STATE.currentPhase >= 3) amp = CONST.WATER_DANGER_WAVE_AMP;
+        const ph1 = STATE.elapsed * (Math.PI * 2 / CONST.WAVE_PERIOD_1), ph2 = STATE.elapsed * (Math.PI * 2 / CONST.WAVE_PERIOD_2), grad = RENDER.ctx.createLinearGradient(0, wy - amp, 0, CONST.MAIN_H), rgba = (hex, a) => `rgba(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)},${a})`;
+        grad.addColorStop(0, rgba(CONST.WATER_TOP_COLOR, CONST.WATER_ALPHA)); grad.addColorStop(0.5, rgba(CONST.WATER_MID_COLOR, CONST.WATER_ALPHA)); grad.addColorStop(1, rgba(CONST.WATER_BOTTOM_COLOR, CONST.WATER_ALPHA));
+        RENDER.ctx.save(); RENDER.ctx.fillStyle = grad; RENDER.ctx.beginPath(); RENDER.ctx.moveTo(-50, CONST.MAIN_H + 50); RENDER.ctx.lineTo(-50, wy);
+        for (let x = -50; x <= CONST.TOTAL_W + 50; x += 5) RENDER.ctx.lineTo(x, wy + Math.sin((x / 80) + ph1) * amp + Math.cos((x / 50) + ph2) * (amp * 0.3));
+        RENDER.ctx.lineTo(CONST.TOTAL_W + 50, CONST.MAIN_H + 50); RENDER.ctx.closePath(); RENDER.ctx.fill();
+        if (STATE.state === "playing" || STATE.state === "gameover") {
+          RENDER.ctx.strokeStyle = CONST.WATER_HIGHLIGHT_COLOR; RENDER.ctx.lineWidth = CONST.WATER_HIGHLIGHT_THICKNESS; RENDER.ctx.beginPath();
+          for (let x = -50; x <= CONST.TOTAL_W + 50; x += 5) { const wv = Math.sin((x / 80) + ph1) * amp + Math.cos((x / 50) + ph2) * (amp * 0.3); if (x === -50) RENDER.ctx.moveTo(x, wy + wv); else RENDER.ctx.lineTo(x, wy + wv); } RENDER.ctx.stroke();
+          if (STATE.state !== "gameover") { RENDER.ctx.font = "bold 12px sans-serif"; RENDER.ctx.lineWidth = 3; RENDER.ctx.strokeStyle = "rgba(0,0,0,0.85)"; RENDER.ctx.fillStyle = CONST.WATER_LINE; RENDER.ctx.strokeText(TEXT.WATER_LEVEL, 15, wy - 15); RENDER.ctx.fillText(TEXT.WATER_LEVEL, 15, wy - 15); RENDER.ctx.strokeText(WORLD.waterMeters() + "m", 18, wy - 2); RENDER.ctx.fillText(WORLD.waterMeters() + "m", 18, wy - 2); }
+        } RENDER.ctx.restore();
+      },
+      drawCountdownUI: () => {
+        if (STATE.state !== "playing") return;
+        const rem = (STATE.floodPhase === "countdown") ? Math.max(0, STATE.floodCountdownEnd - STATE.elapsed) : Math.max(0, WORLD.heightMeters() / CONST.METERS_PER_ROW / CONST.WATER_SPEED - STATE.elapsed);
+        RENDER.ctx.save(); let col = "#FFF", sc = 1.0, dng = (STATE.floodPhase === "countdown" && rem <= 10.0);
+        if (dng) { col = "#FF3B3B"; sc = 1.0 + (0.5 - 0.5 * Math.cos(STATE.elapsed % 1.0 * Math.PI * 2)) * 0.1; }
+        RENDER.ctx.translate(65 + 80, CONST.MAIN_H - 20 - 15); RENDER.ctx.scale(sc, sc); RENDER.ctx.textAlign = "center"; RENDER.ctx.textBaseline = "middle"; RENDER.ctx.font = "bold 20px sans-serif"; RENDER.ctx.lineWidth = 4; RENDER.ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        const t = `${TEXT.FLOOD_COUNTDOWN_PREFIX} ${rem.toFixed(1)}${TEXT.FLOOD_COUNTDOWN_SUFFIX}`; RENDER.ctx.strokeText(t, 0, 0); RENDER.ctx.fillStyle = col; RENDER.ctx.fillText(t, 0, 0); RENDER.ctx.restore();
+      },
+      drawCautionUI: () => {
+        if (STATE.floodPhase !== "blink") return; const t = 1.5 - STATE.cautionAnimTimer; let sc = 1.0, op = 1.0;
+        if (t < 1.0) { const p = t / 1.0; sc = 1.5 - 0.5 * (1 - Math.pow(1-p,3)); op = 1 - Math.pow(1-p,3); } else op = 1.0 - (t - 1.0) / 0.5;
+        RENDER.ctx.save(); RENDER.ctx.globalAlpha = op; RENDER.ctx.translate(CONST.OFFSET_X + 120, CONST.MAIN_H / 2); RENDER.ctx.scale(sc, sc); RENDER.ctx.font = "bold 40px sans-serif"; RENDER.ctx.textAlign = "center"; RENDER.ctx.textBaseline = "middle"; RENDER.ctx.lineWidth = 8; RENDER.ctx.strokeStyle = "#FFF"; RENDER.ctx.strokeText(TEXT.CAUTION_TEXT, 0, 0); RENDER.ctx.fillStyle = "#FF3B3B"; RENDER.ctx.fillText(TEXT.CAUTION_TEXT, 0, 0); RENDER.ctx.restore();
+      },
+      drawRadar: () => {
+        if (STATE.state === "gameover" || STATE.state === "title" || STATE.state === "intro") return;
+        RENDER.ctx.save(); RENDER.ctx.translate(400, 0); const rx0 = 10, it = 12, ib = 480 - 12, ih = ib - it;
+        RENDER.ctx.fillStyle = "rgba(0,0,0,0.35)"; RENDER.ctx.fillRect(rx0, it, 48, ih); RENDER.ctx.strokeStyle = "#FFF"; RENDER.ctx.strokeRect(rx0, it, 48, ih);
+        if (STATE.radarAbstractionMode) {
+          for (let y = 0; y < 200; y++) {
+            let c = 0; for (let x = 0; x < 6; x++) if (WORLD.grid[y][x] && WORLD.grid[y][x] !== 9) c++;
+            if (c > 0) { const ry = RENDER.radarYByMeters((199-y)*10), rh = Math.max(1, ih/200*1), op = c>=5?0.8:(c>=3?0.5:0.2); RENDER.ctx.fillStyle = `rgba(255,255,255,${op})`; RENDER.ctx.fillRect(rx0, ry, 48, rh); }
+          }
+        } else {
+          const sx = 48/6, rh = Math.max(1, ih/200*1); for (let y = 0; y < 200; y++) for (let x = 0; x < 6; x++) if (WORLD.grid[y][x] && WORLD.grid[y][x] !== 9) {
+            let cl = (typeof WORLD.grid[y][x] === 'object') ? WORLD.grid[y][x].color : WORLD.grid[y][x]; RENDER.ctx.fillStyle = CONST.COLORS[cl]; RENDER.ctx.fillRect(rx0 + x * sx, RENDER.radarYByMeters((199-y)*10), sx, rh);
+          }
+        }
+        for (let h of STATE.humans) if (!h.isDead) {
+          let ry = RENDER.radarYByMeters((199 - h.y/40 - 1) * 10);
+          RENDER.ctx.fillStyle = h.isVIP ? "gold" : "#FFF"; RENDER.ctx.beginPath(); RENDER.ctx.arc(rx0 + ((h.x-130)/(6*40))*48 + 4, ry + 2, 4, 0, Math.PI*2); RENDER.ctx.fill(); RENDER.ctx.strokeStyle = "#000"; RENDER.ctx.lineWidth = 1; RENDER.ctx.stroke();
+        }
+        const drawL = (m, col, lab) => {
+          const ry = RENDER.radarYByMeters(m); RENDER.ctx.strokeStyle = col; RENDER.ctx.lineWidth = 3; RENDER.ctx.beginPath(); RENDER.ctx.moveTo(rx0, ry); RENDER.ctx.lineTo(rx0 + 53, ry); RENDER.ctx.stroke(); RENDER.ctx.fillStyle = col; RENDER.ctx.font = "11px sans-serif"; RENDER.ctx.textAlign = "right"; RENDER.ctx.fillText(`${lab} ${Math.round(m)}m`, rx0 + 103, ry - 5);
+        };
+        drawL(200, "#ffeb3b", TEXT.GOAL); drawL(Math.max(0, (199 - STATE.renderSafeLine - 2) * 10), "#FFF", TEXT.SAFE_HEIGHT); drawL(WORLD.waterMeters(), "#66d9ff", TEXT.WATER_LEVEL);
+        const cy1 = RENDER.radarYByMeters((199 - WORLD.cameraY - 1) * 10), cy2 = RENDER.radarYByMeters((199 - (WORLD.cameraY + 12) - 1) * 10);
+        RENDER.ctx.fillStyle = "rgba(255,255,255,0.25)"; RENDER.ctx.fillRect(rx0, cy1, 48, cy2-cy1); RENDER.ctx.strokeStyle = "#FFF"; RENDER.ctx.strokeRect(rx0, cy1, 48, cy2-cy1);
+        STATE.deadHumans.forEach(h => {
+          let ry = RENDER.radarYByMeters((199 - h.y/40 - 1) * 10), rx = rx0 + ((h.x-130)/(240))*48;
+          if (ry > it && ry < ib) { RENDER.ctx.save(); RENDER.ctx.strokeStyle = "#000"; RENDER.ctx.lineWidth = 4; RENDER.ctx.beginPath(); RENDER.ctx.moveTo(rx-3,ry-3); RENDER.ctx.lineTo(rx+3,ry+3); RENDER.ctx.moveTo(rx+3,ry-3); RENDER.ctx.lineTo(rx-3,ry+3); RENDER.ctx.stroke(); RENDER.ctx.strokeStyle = "#f00"; RENDER.ctx.lineWidth = 2; RENDER.ctx.stroke(); RENDER.ctx.restore(); }
+        });
+        RENDER.ctx.restore();
+      },
+      drawSurvivalList: () => {
+        RENDER.ctx.save(); RENDER.ctx.textAlign = "left"; RENDER.ctx.textBaseline = "middle";
+        STATE.allHumans.forEach((h, i) => {
+          let col = i % 5, row = Math.floor(i / 5); RENDER.ctx.fillStyle = (h.isDead && h.skullTimer <= 0) ? "#444" : (h.isVIP ? "#fb0" : "#fff"); RENDER.ctx.font = "bold 12px sans-serif"; RENDER.ctx.fillText("●", 15 + col * 22, 70 + row * 22);
+        }); RENDER.ctx.restore();
+      },
+      drawNextBlock: () => {
+        if (!STATE.nextPair) return; RENDER.ctx.save(); RENDER.ctx.fillStyle = "rgba(0,0,0,0.5)"; RENDER.ctx.fillRect(10, 10, 80, 40); RENDER.ctx.strokeStyle = "#fff"; RENDER.ctx.lineWidth = 2; RENDER.ctx.strokeRect(10, 10, 80, 40);
+        RENDER.ctx.fillStyle = "#fff"; RENDER.ctx.font = "bold 10px sans-serif"; RENDER.ctx.fillText(TEXT.NEXT_LABEL, 15, 22);
+        const offsets = BLOCK.getShapeOffsets(STATE.nextPair.size, STATE.nextPair.rot);
+        offsets.forEach((off, i) => {
+          RENDER.ctx.fillStyle = CONST.COLORS[STATE.nextPair.c[i]]; const px = 50 + (off[0] - 0.5) * 12, py = 30 + (off[1] - 0.5) * 12; RENDER.ctx.fillRect(px, py, 12, 12); RENDER.ctx.strokeStyle = "#000"; RENDER.ctx.lineWidth = 1; RENDER.ctx.strokeRect(px, py, 12, 12);
+        }); RENDER.ctx.restore();
+      },
+      draw: (dt = 0) => {
+        RENDER.ctx.save(); RENDER.ctx.imageSmoothingEnabled = false; if (STATE.state !== "gameover") RENDER.ctx.translate(STATE.shakeOffset.x, STATE.shakeOffset.y); RENDER.ctx.clearRect(-50, -50, 590+100, 480+100); RENDER.drawSkyAndClouds(RENDER.ctx, 590, 480, 0, 590); RENDER.drawRain();
+        if (STATE.state === "title" || STATE.state === "intro") RENDER.drawOverlays(); else {
+          if (STATE.state === "playing") { RENDER.ctx.fillStyle = "rgba(0,0,0,0.35)"; RENDER.ctx.fillRect(130, 0, 240, 480); }
+          if (STATE.state !== "clear") { RENDER.ctx.fillStyle = CONST.GROUND; RENDER.ctx.fillRect(0, RENDER.screenY(199), 590, 40); }
+          RENDER.drawGridBlocks();
+          if (STATE.state === "playing" && BLOCK.pair) BLOCK.renderBlocks(BLOCK.pair).forEach(b => RENDER.drawBlockCell(b.x*40+130, RENDER.screenY(b.y), CONST.COLORS[b.c], null, b.isCracked));
+          if (STATE.state === "playing") RENDER.drawGameGuides(); RENDER.drawWater();
+          if (STATE.state === "playing" || STATE.state === "goal_wait") { RENDER.drawCountdownUI(); RENDER.drawCautionUI(); RENDER.drawLimitWarning(); RENDER.drawFallingBombs(); RENDER.drawHumans(RENDER.ctx, WORLD.cameraY * 40); }
+          RENDER.drawParticles(); if (STATE.state === "clear") { RENDER.drawHumans(RENDER.ctx, WORLD.cameraY*40); RENDER.drawClearUI(); }
+          if (STATE.state === "gameover") { RENDER.drawHumans(RENDER.ctx, WORLD.cameraY*40); RENDER.drawGameOverUI(); }
+          RENDER.drawDebugMessage();
+        } RENDER.ctx.restore(); RENDER.drawRadar();
+        if (STATE.state !== "title" && STATE.state !== "intro") { RENDER.drawSurvivalList(); RENDER.drawNextBlock(); }
+        RENDER.ctx.save(); RENDER.ctx.fillStyle="#0f0"; RENDER.ctx.font="12px monospace"; RENDER.ctx.textAlign="right"; RENDER.ctx.fillText(`FPS: ${STATE.fps}`, 580, 20); RENDER.ctx.restore();
+        if (STATE.state === "human_edit") { EDITOR.updateEditor(dt); RENDER.drawEditMode(); return; }
+        if (STATE.isPaused) RENDER.drawPauseUI();
+      },
+      drawBlockCell: (px, py, col, timer, isCr) => {
+        RENDER.ctx.fillStyle = col; RENDER.ctx.fillRect(px, py, 40, 40);
+        if (timer !== null && timer > 1.0) { RENDER.ctx.fillStyle = `rgba(255,255,255,${(timer-1.0)/0.5*0.8})`; RENDER.ctx.fillRect(px, py, 40, 40); }
+        RENDER.ctx.strokeStyle = "rgba(0,0,0,0.75)"; RENDER.ctx.lineWidth = 2; RENDER.ctx.strokeRect(px-1, py-1, 42, 42);
+        if (timer !== null && timer <= 1.0) RENDER.drawCrack(px, py, 1.0 - timer); else if (isCr) RENDER.drawBottomCrack(px, py, 1.0);
+      },
+      drawCrack: (px, py, p) => {
+        RENDER.ctx.save(); RENDER.ctx.strokeStyle = `rgba(0,0,0,${Math.min(1,p*2)})`; RENDER.ctx.lineWidth = 2; RENDER.ctx.beginPath();
+        RENDER.ctx.moveTo(px+8, py); RENDER.ctx.lineTo(px+16, py+16); RENDER.ctx.lineTo(px+12, py+28); RENDER.ctx.lineTo(px+24, py+40); RENDER.ctx.moveTo(px+16, py+16); RENDER.ctx.lineTo(px+32, py+24); RENDER.ctx.stroke(); RENDER.ctx.restore();
+      },
+      drawBottomCrack: (px, py, p) => {
+        RENDER.ctx.save(); RENDER.ctx.strokeStyle = `rgba(0,0,0,${Math.min(1,p*2)})`; RENDER.ctx.lineWidth = 2; RENDER.ctx.beginPath();
+        RENDER.ctx.moveTo(px+20, py+40); RENDER.ctx.lineTo(px+16, py+28); RENDER.ctx.lineTo(px+28, py+16); RENDER.ctx.lineTo(px+24, py+4); RENDER.ctx.moveTo(px+16, py+28); RENDER.ctx.lineTo(px+8, py+20); RENDER.ctx.stroke(); RENDER.ctx.restore();
+      },
+      drawGridBlocks: () => {
+        for (let y = 0; y < 13; y++) for (let x = 0; x < 6; x++) {
+          let gy = y + Math.floor(WORLD.cameraY); if (gy >= 0 && gy < 200 && WORLD.grid[gy][x] && WORLD.grid[gy][x] !== 9) {
+            let c = WORLD.grid[gy][x], isB = (typeof c === 'object' && c.type === 'bomb'), col = isB ? null : (typeof c === 'object' ? CONST.COLORS[c.color] : CONST.COLORS[c]), oy = (typeof c === 'object' && c.renderOffsetY) ? c.renderOffsetY * 40 : 0, px = x * 40 + 130, py = RENDER.screenY(gy) + oy;
+            if (isB) RENDER.drawBomb(px, py, c.timer, c.state === 'cracking' ? c.crackTimer : null); else RENDER.drawBlockCell(px, py, col, c.state === 'cracking' ? c.timer : null, c.isCracked);
+          }
+        }
+      },
+      drawOverlays: () => {
+        const cx = 590 / 2; if (STATE.state === "title") {
+          RENDER.ctx.fillStyle = "rgba(0,0,0,0.35)"; RENDER.ctx.fillRect(0,0,590,480);
+          RENDER.ctx.save(); RENDER.ctx.textAlign="center"; RENDER.ctx.textBaseline="middle"; RENDER.ctx.lineWidth=10; RENDER.ctx.strokeStyle="rgba(20,20,40,0.95)"; RENDER.ctx.fillStyle="#f7f7ff"; RENDER.ctx.font="64px sans-serif"; RENDER.ctx.strokeText(TEXT.TITLE, cx, 200); RENDER.ctx.fillText(TEXT.TITLE, cx, 200);
+          if ((Math.floor(STATE.elapsed*2)%2)===0) { RENDER.ctx.font="28px sans-serif"; RENDER.ctx.lineWidth=5; RENDER.ctx.strokeStyle="rgba(0,0,0,0.9)"; RENDER.ctx.fillStyle="#ffd54f"; RENDER.ctx.strokeText(TEXT.PUSH_SPACE, cx, 315); RENDER.ctx.fillText(TEXT.PUSH_SPACE, cx, 315); }
+          RENDER.ctx.restore();
+        } else if (STATE.state === "intro") {
+          RENDER.ctx.fillStyle="rgba(0,0,0,0.48)"; RENDER.ctx.fillRect(28,28,590-56,480-56); RENDER.ctx.save(); RENDER.ctx.textAlign="center"; RENDER.ctx.textBaseline="middle"; RENDER.ctx.lineWidth=6; RENDER.ctx.strokeStyle="rgba(0,0,0,0.92)"; RENDER.ctx.fillStyle="#fff"; RENDER.ctx.font="22px sans-serif"; let y=50;
+          TEXT.INTRO_LINES.forEach(l => { if (l==="") y+=10; else { RENDER.ctx.strokeText(l, cx, y); RENDER.ctx.fillText(l, cx, y); y+=30; } }); y+=8; RENDER.ctx.font="15px sans-serif";
+          TEXT.INTRO_CONTROLS.forEach(l => { if (l==="") y+=6; else { RENDER.ctx.strokeText(l, cx, y); RENDER.ctx.fillText(l, cx, y); y+=21; } });
+          if ((Math.floor(STATE.elapsed*2)%2)===0) { RENDER.ctx.font="26px sans-serif"; RENDER.ctx.fillStyle="#ffd54f"; RENDER.ctx.strokeText(TEXT.PUSH_SPACE, cx, 430); RENDER.ctx.fillText(TEXT.PUSH_SPACE, cx, 430); } RENDER.ctx.restore();
+        }
+      },
+      drawClearUI: () => {
+        const p = Math.min(1, (STATE.elapsed-STATE.clearStart)/2.4), e = 1-Math.pow(1-p,3), cx = 130 + 120, y = 560 + (230-560)*e;
+        RENDER.ctx.save(); RENDER.ctx.textAlign="center"; RENDER.ctx.textBaseline="middle"; RENDER.ctx.lineWidth=6; RENDER.ctx.strokeStyle="rgba(0,0,0,0.9)"; RENDER.ctx.fillStyle="#fff";
+        RENDER.ctx.font="52px sans-serif"; RENDER.ctx.strokeText(TEXT.GOAL_TEXT, cx, y-35); RENDER.ctx.fillText(TEXT.GOAL_TEXT, cx, y-35); RENDER.ctx.font="28px sans-serif"; RENDER.ctx.strokeText(TEXT.CONGRATULATIONS, cx, y+30); RENDER.ctx.fillText(TEXT.CONGRATULATIONS, cx, y+30);
+        if (p>=1 && (Math.floor(STATE.elapsed*2)%2)===0) { RENDER.ctx.font="18px sans-serif"; RENDER.ctx.strokeText(TEXT.PUSH_SPACE, cx, y+95); RENDER.ctx.fillText(TEXT.PUSH_SPACE, cx, y+95); }
+        STATE.confetti.forEach(p => { RENDER.ctx.save(); RENDER.ctx.globalAlpha=Math.max(0, p.life/90); RENDER.ctx.translate(p.x,p.y); RENDER.ctx.rotate(p.r); RENDER.ctx.fillStyle=p.c; RENDER.ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); RENDER.ctx.restore(); }); RENDER.ctx.restore();
+      },
+      drawGameOverUI: () => {
+        const p = Math.min(1, (STATE.elapsed-STATE.gameoverStart)/5), e = 1-Math.pow(1-p,3), cx = 130 + 120, y = -120 + (240+120)*e;
+        RENDER.ctx.save(); RENDER.ctx.textAlign="center"; RENDER.ctx.textBaseline="middle"; RENDER.ctx.lineWidth=6; RENDER.ctx.strokeStyle="rgba(0,0,0,0.9)"; RENDER.ctx.fillStyle="#fff";
+        RENDER.ctx.font="34px sans-serif"; RENDER.ctx.strokeText(TEXT.GAME_OVER, cx, y-40); RENDER.ctx.fillText(TEXT.GAME_OVER, cx, y-40); RENDER.ctx.font="54px sans-serif"; RENDER.ctx.strokeText(TEXT.TITLE, cx, y+20); RENDER.ctx.fillText(TEXT.TITLE, cx, y+20);
+        if (p>=1 && (Math.floor(STATE.elapsed*2)%2)===0) { RENDER.ctx.font="18px sans-serif"; RENDER.ctx.strokeText(TEXT.PUSH_SPACE, cx, y+95); RENDER.ctx.fillText(TEXT.PUSH_SPACE, cx, y+95); } RENDER.ctx.restore();
+      },
+      drawBomb: (px, py, t, ct) => {
+        const fl = (t<=5 && (Math.floor(STATE.elapsed*6)%2)===0); RENDER.ctx.save(); RENDER.ctx.fillStyle = fl?"#f33":"#222"; RENDER.ctx.beginPath(); RENDER.ctx.arc(px+20,py+20,18,0,Math.PI*2); RENDER.ctx.fill(); RENDER.ctx.lineWidth=2; RENDER.ctx.strokeStyle="#000"; RENDER.ctx.stroke();
+        RENDER.ctx.strokeStyle="#8b4513"; RENDER.ctx.lineWidth=3; RENDER.ctx.beginPath(); RENDER.ctx.moveTo(px+20,py+4); RENDER.ctx.quadraticCurveTo(px+32,py-8,px+32,py-12); RENDER.ctx.stroke();
+        if (t>0 && Math.random()<0.8) { RENDER.ctx.fillStyle=["#ffeb3b","#ff9800","#ff5722"][Math.floor(Math.random()*3)]; RENDER.ctx.beginPath(); RENDER.ctx.arc(px+32+(Math.random()-0.5)*5, py-12+(Math.random()-0.5)*5, 3+Math.random()*3, 0, Math.PI*2); RENDER.ctx.fill(); }
+        RENDER.ctx.fillStyle="#fff"; RENDER.ctx.font="bold 16px sans-serif"; RENDER.ctx.textAlign="center"; RENDER.ctx.textBaseline="middle"; RENDER.ctx.fillText(Math.ceil(t), px+20, py+20);
+        if (ct!==null && ct>1.0) { RENDER.ctx.fillStyle="rgba(255,255,255,0.7)"; RENDER.ctx.fillRect(px,py,40,40); } if (ct!==null && ct<=1.0) RENDER.drawCrack(px,py,1.0-ct); RENDER.ctx.restore();
+      },
+      drawGameGuides: () => {
+        RENDER.ctx.strokeStyle="#FFF"; RENDER.ctx.lineWidth=4; RENDER.ctx.beginPath(); RENDER.ctx.moveTo(130,0); RENDER.ctx.lineTo(130,480); RENDER.ctx.moveTo(370,0); RENDER.ctx.lineTo(370,480); RENDER.ctx.stroke();
+        const gy = RENDER.screenY(199 - 20); RENDER.ctx.strokeStyle="#ffeb3b"; RENDER.ctx.lineWidth=2; RENDER.ctx.beginPath(); RENDER.ctx.moveTo(130,gy); RENDER.ctx.lineTo(370,gy); RENDER.ctx.stroke();
+        const dgt = (l, v, x, y, c) => { RENDER.ctx.font="10px sans-serif"; RENDER.ctx.lineWidth=3; RENDER.ctx.strokeStyle="rgba(0,0,0,0.85)"; RENDER.ctx.fillStyle=c; RENDER.ctx.strokeText(l, x, y-15); RENDER.ctx.fillText(l, x, y-15); RENDER.ctx.strokeText(v, x+5, y-2); RENDER.ctx.fillText(v, x+5, y-2); };
+        dgt(TEXT.GOAL, "200m", 15, gy, "#ffeb3b"); let sly = RENDER.screenY(STATE.renderSafeLine+1); RENDER.ctx.strokeStyle="#FFF"; RENDER.ctx.lineWidth=3; RENDER.ctx.beginPath(); RENDER.ctx.moveTo(0,sly); RENDER.ctx.lineTo(370,sly); RENDER.ctx.stroke(); dgt(TEXT.SAFE_HEIGHT, Math.round((199-STATE.renderSafeLine-2)*10)+"m", 10, sly, "#FFF");
+      },
+      drawLimitWarning: () => {
+        if (STATE.state === "playing" && STATE.floodPhase === "none" && STATE.elapsed < STATE.limitWarningUntil) {
+          RENDER.ctx.save(); RENDER.ctx.font="18px sans-serif"; RENDER.ctx.textAlign="center"; RENDER.ctx.textBaseline="middle"; const cx = 130+120, cy = 240;
+          TEXT.LIMIT_WARNING_LINES.forEach((l,i) => { RENDER.ctx.lineWidth=4; RENDER.ctx.strokeStyle="rgba(0,0,0,0.85)"; RENDER.ctx.strokeText(l, cx, cy-22+i*22); RENDER.ctx.fillStyle="#ffeb3b"; RENDER.ctx.fillText(l, cx, cy-22+i*22); }); RENDER.ctx.restore();
+        }
+      },
+      drawDebugMessage: () => { if (STATE.debugMessageTimer > 0) { RENDER.ctx.save(); RENDER.ctx.font="bold 20px sans-serif"; RENDER.ctx.fillStyle="#F00"; RENDER.ctx.textAlign="center"; RENDER.ctx.fillText(STATE.debugMessage, 130+120, 10); RENDER.ctx.restore(); } },
+      drawFallingBombs: () => STATE.fallingBombs.forEach(b => RENDER.drawBomb(b.x*40+130, RENDER.screenY(b.y), b.timer)),
+      drawParticles: () => STATE.particles.forEach(p => { RENDER.ctx.globalAlpha=Math.max(0,p.life/p.maxLife); RENDER.ctx.fillStyle=p.c; RENDER.ctx.fillRect(p.x*40+130-p.size/2, RENDER.screenY(p.y)-p.size/2, p.size, p.size); RENDER.ctx.globalAlpha=1; }),
+      drawEditMode: () => {
+        RENDER.ctx.fillStyle="#111"; RENDER.ctx.fillRect(0,0,590,480); RENDER.ctx.fillStyle="#fff"; RENDER.ctx.font="14px monospace"; RENDER.ctx.textAlign="left";
+        EDITOR.EDITOR_BUTTONS.forEach(btn => {
+          if (btn.type==='page_nav') { RENDER.ctx.fillStyle="#444"; RENDER.ctx.fillRect(btn.rect.x, btn.rect.y, btn.rect.w, btn.rect.h); RENDER.ctx.fillStyle="#fff"; RENDER.ctx.font="bold 18px monospace"; RENDER.ctx.textAlign="center"; RENDER.ctx.fillText(btn.dir===-1?"≪":"≫", btn.rect.x+btn.rect.w/2, btn.rect.y+btn.rect.h/2+6); if(btn.dir===1){RENDER.ctx.fillStyle="#fff"; RENDER.ctx.font="bold 16px sans-serif"; RENDER.ctx.fillText(EDITOR.PAGES[STATE.editorPage].name, btn.rect.x-100, btn.rect.y+btn.rect.h/2+6);} RENDER.ctx.textAlign="left"; }
+          else if (btn.type==='param') { RENDER.ctx.fillStyle="#fff"; RENDER.ctx.fillText(btn.name, 10, btn.y); RENDER.ctx.fillStyle="#444"; RENDER.ctx.fillRect(btn.minusRect.x, btn.minusRect.y, btn.minusRect.w, btn.minusRect.h); RENDER.ctx.fillStyle="#fff"; RENDER.ctx.fillText("▼", btn.minusRect.x+5, btn.minusRect.y+18); RENDER.ctx.fillText(CONST.HUMAN_RENDER_CONFIG[btn.name], btn.minusRect.x+35, btn.y); RENDER.ctx.fillStyle="#444"; RENDER.ctx.fillRect(btn.plusRect.x, btn.plusRect.y, btn.plusRect.w, btn.plusRect.h); RENDER.ctx.fillStyle="#fff"; RENDER.ctx.fillText("▲", btn.plusRect.x+5, btn.plusRect.y+18); }
+          else if (btn.type==='state') { RENDER.ctx.fillStyle=(STATE.editorState===btn.name)?"#fb0":"#444"; RENDER.ctx.fillRect(btn.rect.x, btn.rect.y, btn.rect.w, btn.rect.h); RENDER.ctx.fillStyle="#fff"; RENDER.ctx.fillText(btn.name, btn.rect.x+5, btn.rect.y+20); }
+        });
+        if (STATE.editorHuman) {
+          RENDER.ctx.save(); RENDER.ctx.translate(350, 240); RENDER.ctx.scale(2, 2); STATE.editorHuman.x=0; STATE.editorHuman.y=-26; RENDER.drawHumans(RENDER.ctx, 0, [STATE.editorHuman]); RENDER.ctx.restore();
+          RENDER.ctx.save(); RENDER.ctx.translate(450, 240); STATE.editorHuman.x=0; STATE.editorHuman.y=-26; RENDER.drawHumans(RENDER.ctx, 0, [STATE.editorHuman]); RENDER.ctx.restore();
+        }
+        RENDER.ctx.fillStyle="#fff"; RENDER.ctx.font="12px sans-serif"; RENDER.ctx.fillText(TEXT.RETURN_TO_TITLE, 10, 470);
+      },
+      drawPauseUI: () => {
+        RENDER.ctx.fillStyle="rgba(0,0,0,0.5)"; RENDER.ctx.fillRect(0,0,590,480); if ((performance.now()/1000 % 1.0) < 0.5) { RENDER.ctx.fillStyle="#FFF"; RENDER.ctx.font="bold 40px sans-serif"; RENDER.ctx.textAlign="center"; RENDER.ctx.textBaseline="middle"; RENDER.ctx.fillText(TEXT.PAUSE_TEXT, 295, 240); }
+      }
+    });
+
+    // =========================
+    // core/gameLogic.js
+    // =========================
+    const GAME = {
+      rowFullTimers: {},
+      spawnHumans: () => {
+        let h = []; let vip = Math.floor(Math.random()*50); for(let i=0; i<50; i++) h.push(new Human(i, 130+40+Math.random()*4*40, 0, i===vip));
+        h.forEach(human => human.y = human.getStandingY(Math.round((human.x-130)/40), 0)-26);
+        STATE.setHumans(h); STATE.setAllHumans([...h]);
+      },
+      startGameOver: () => { if (STATE.state!=="gameover") { STATE.setState("gameover"); STATE.setGameoverStart(STATE.elapsed); STATE.setGameoverCameraY(WORLD.cameraY); BLOCK.setPair(null); STATE.setGravityActive(false); } },
+      update: (dt) => {
+        STATE.addElapsed(dt); if(STATE.debugMessageTimer>0) STATE.setDebugMessageTimer(STATE.debugMessageTimer-dt);
+        EFFECTS.updateRain(dt); EFFECTS.updateThunder(dt); EFFECTS.updateShake(dt); WORLD.updateSafe();
+        if (["playing", "goal_wait", "gameover", "clear"].includes(STATE.state)) {
+          let rem = [], sm = STATE.state==="goal_wait"?2.5:1.0; STATE.humans.forEach(h => { h.update(dt*sm); if(h.y<=(WORLD.cameraY+12+10)*40) rem.push(h); }); STATE.setHumans(rem);
+          if (rem.length===0 && STATE.state==="playing") { GAME.startGameOver(); return; }
+          GAME.updateRescue(dt);
+        }
+        if (STATE.state==="clear") { if(!STATE.clearCelebrationFired && STATE.elapsed-STATE.clearStart>=2.4) { EFFECTS.spawnClearCelebration(); STATE.setClearCelebrationFired(true); } EFFECTS.updateCelebrationEffects(); return; }
+        if (STATE.state==="gameover") { WORLD.setCameraY(STATE.gameoverCameraY); for(let i=0; i<6; i++) COLLAPSE.forceGravity(); WORLD.setWater(Math.min(WORLD.water + dt*0.15*10, (200-WORLD.cameraY)+2)); return; }
+        if (STATE.state==="goal_wait") { let all=true; let gy=(200-20/10-1.5)*40; STATE.humans.forEach(h=>{if(h.y>gy)all=false;}); if(all){ STATE.setState("clear"); let s=0; STATE.humans.forEach(h=>{s+=h.isVIP?500:100; h.state='goal'; h.timer=2.0; h.goalSubState=0; h.say("GOAL");}); SCORE.addScore(s); STATE.setClearStart(STATE.elapsed); } return; }
+        if (STATE.state!=="playing") return; if (STATE.state==="playing" && STATE.floodPhase==="blink") { GAME.updateFloodGrace(dt); return; }
+        if (!STATE.debugPauseWater) WORLD.setWater(WORLD.water + dt*0.15); GAME.updateBombs(dt);
+        if (Math.round((199-STATE.renderSafeLine-2)*10)>=200 && !STATE.gravityActive) { STATE.setState("goal_wait"); BLOCK.setPair(null); }
+        if (WORLD.water*10 >= WORLD.heightMeters()) GAME.startFloodGrace(); else GAME.resetFloodGrace();
+        GAME.updateFloodGrace(dt); if (STATE.state!=="playing") return;
+        if (BLOCK.pair) BLOCK.updatePairRender(); if (STATE.gravityActive) COLLAPSE.updateCascade(dt); GAME.updateCrackingBlocks(dt);
+        if (!STATE.nextPair && STATE.spawnEnabled) STATE.setNextPair(BLOCK.newPair());
+        if (!BLOCK.pair && STATE.spawnEnabled && STATE.nextPair) { BLOCK.setPair(STATE.nextPair); STATE.setNextPair(BLOCK.newPair()); }
+        BLOCK.addDrop(dt); let sp = BLOCK.fast?0.05:0.6; if (BLOCK.drop > sp) { BLOCK.setDrop(0); BLOCK.pair.y++; if(BLOCK.hit(BLOCK.blocks(BLOCK.pair))) { BLOCK.pair.y--; BLOCK.merge(); BLOCK.setPair(null); if(!STATE.gravityActive) COLLAPSE.startCascade(); else COLLAPSE.setupGravity(); } }
+        STATE.setRenderSafeLine(STATE.renderSafeLine + (WORLD.safeLine-STATE.renderSafeLine)*0.15); WORLD.setTargetCameraY(Math.max(0, Math.min(200-12, (STATE.renderSafeLine+1)-(12-3)))); WORLD.setCameraY(WORLD.cameraY + (WORLD.targetCameraY-WORLD.cameraY)*0.05);
+      },
+      updateFloodGrace: (dt) => {
+        if (STATE.floodPhase==="none") return;
+        if (STATE.floodPhase==="blink") { STATE.setCautionAnimTimer(Math.max(0, STATE.cautionAnimTimer-dt)); if(STATE.cautionAnimTimer<=0) { STATE.setFloodPhase("countdown"); STATE.setFloodCountdownEnd(STATE.elapsed+10); } return; }
+        const r = Math.max(0, STATE.floodCountdownEnd-STATE.elapsed); STATE.setCurrentPhase(r>7?1:(r>4?2:(r>2?3:4))); if(r<=0) GAME.startGameOver();
+      },
+      startFloodGrace: () => { if(STATE.floodPhase==="none") { STATE.setLimitWarningUntil(0); STATE.setFloodPhase("blink"); STATE.setFloodBlinkStart(STATE.elapsed); STATE.setCautionAnimTimer(1.5); } },
+      resetFloodGrace: () => { STATE.setFloodPhase("none"); STATE.setCurrentPhase(0); },
+      updateBombs: (dt) => {
+        if (STATE.elapsed-STATE.lastBombCheck >= 5) {
+          STATE.setLastBombCheck(STATE.lastBombCheck+5); const m = WORLD.heightMeters();
+          if (m>=0) { let p = Math.min(10, Math.floor(m/10)*50); if(Math.random()<p/100) STATE.fallingBombs.push({x: Math.floor(Math.random()*6), y: WORLD.cameraY-2, timer: 10+Math.random()*20}); }
+        }
+        for (let i = STATE.fallingBombs.length-1; i>=0; i--) {
+          let b = STATE.fallingBombs[i], ny = b.y + 3*dt, vt = 200;
+          for(let y=0;y<200;y++) if(WORLD.grid[y][b.x]){vt=y+((typeof WORLD.grid[y][b.x]==='object'&&WORLD.grid[y][b.x].renderOffsetY)?WORLD.grid[y][b.x].renderOffsetY:0); break;}
+          if (ny+1 >= vt) { let py = Math.floor(vt)-1; if(py>=0) { WORLD.grid[py][b.x] = {type:'bomb', timer:b.timer}; if(!STATE.gravityActive) COLLAPSE.startCascade(); else COLLAPSE.setupGravity(); COLLAPSE.applyLimit(); } STATE.fallingBombs.splice(i,1); } else b.y = ny;
+        }
+        let exp = false; for(let y=0;y<200;y++) for(let x=0;x<6;x++) {
+          let c = WORLD.grid[y][x]; if(typeof c==='object'&&c.type==='bomb'&&c.state!=='cracking'){ if(!STATE.debugPauseCracking) c.timer-=dt; if(c.timer<=0){ for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ let ny=y+dy,nx=x+dx; if(nx>=0&&nx<6&&ny>=0&&ny<200&&WORLD.grid[ny][nx]!==9){ if(WORLD.grid[ny][nx]) EFFECTS.spawnParticles(nx,ny,(typeof WORLD.grid[ny][nx]==='number')?CONST.COLORS[WORLD.grid[ny][nx]]:"#f30"); WORLD.grid[ny][nx]=0; STATE.humans.forEach(h=>h.onBlockBroken(nx,ny)); } } exp=true; } }
+        } if(exp){ if(!STATE.gravityActive) COLLAPSE.startCascade(); else COLLAPSE.setupGravity(); }
+      },
+      updateCrackingBlocks: (dt) => {
+        if(STATE.debugPauseCracking) return; if(!STATE.gravityActive){
+          let fin = false; for(let y=0;y<200;y++) for(let x=0;x<6;x++){
+            let c = WORLD.grid[y][x]; if(c&&typeof c==='object'&&c.state==='cracking'){ let k=c.type==='bomb'?'crackTimer':'timer'; c[k]-=dt; if(c[k]<=0){ if(c.type==='bomb') GAME.checkBombDamage(x,y); EFFECTS.spawnParticles(x,y,c.type==='bomb'?"#555":CONST.COLORS[c.color]); WORLD.grid[y][x]=0; fin=true; } }
+          } if(fin) COLLAPSE.startCascade();
+        }
+      },
+      checkBombDamage: (bx, by) => {
+        const wx = bx*40+130+20, wy = by*40+20, rad = 40*1.5;
+        STATE.humans.forEach(h => { if(!h.isDead && Math.sqrt(Math.pow(h.x-wx,2)+Math.pow(h.y+13-wy,2)) < rad) h.die('bomb'); });
+      },
+      updateRescue: (dt) => {
+        if(!CONST.HUMAN_RESCUE_ENABLED || STATE.state!=="playing") return;
+        for(let y=Math.floor(STATE.renderSafeLine); y<200; y++) {
+          let full = true; for(let x=0;x<6;x++) if(!WORLD.grid[y][x] || WORLD.grid[y][x]===9 || (typeof WORLD.grid[y][x]==='object'&&!WORLD.grid[y][x].isCracked)) { full=false; break; }
+          if (full) {
+            let hs = STATE.humans.filter(h => Math.floor((h.y+26-2)/40) === y+1);
+            if (hs.length>0) {
+              GAME.rowFullTimers[y] = (GAME.rowFullTimers[y]||0)+dt;
+              if (GAME.rowFullTimers[y]>=15) { let v=hs[0]; if(v.state!=='climb_cracked'&&v.state!=='shock') { v.state='climb_cracked'; STATE.showDebugMessage(`RESCUE: Floor ${y} opened`); GAME.rowFullTimers[y]=0; } }
+            } else GAME.rowFullTimers[y]=0;
+          } else GAME.rowFullTimers[y]=0;
+        }
+      }
+    };
+
+    // =========================
+    // ui/humanEditor.js
+    // =========================
+    Object.assign(EDITOR, {
+      EDITOR_BUTTONS: [],
+      PAGES: [
+        { name: "Common", state: "walk", params: ["BODY_SIZE_RATIO", "FOOT_W", "FOOT_H", "HAND_SIZE", "SPEECH_FONT_SIZE", "SIGMA_SIZE", "SIGMA_OFFSET_X", "SIGMA_OFFSET_Y", "SIGMA_ROTATION"] },
+        { name: "Walk/Escape", state: "walk", params: ["BOUNCE_AMP", "FOOT_X_OFF", "FOOT_Y_OFF", "HAND_X_OFF", "HAND_Y_OFF_B", "SWEAT_X_OFF", "SWEAT_Y_OFF", "SWEAT_ROTATION"] },
+        { name: "Climb", state: "climb", params: ["SWAY_AMP", "CLIMB_FOOT_X_OFF", "CLIMB_FOOT_Y_OFF", "CLIMB_HAND_X_OFF", "CLIMB_HAND_Y_OFF", "CLIMB_FOOT_W", "CLIMB_FOOT_H"] },
+        { name: "Fall/Drown", state: "fall", params: ["FALL_FOOT_X_OFF", "FALL_HAND_X_OFF"] },
+        { name: "Fell Over", state: "fell_over", params: ["FELL_OVER_FOOT_X_OFF", "FELL_OVER_HAND_X_OFF"] },
+        { name: "Goal", state: "goal", params: [] },
+        { name: "Shock", state: "shock", params: [] }
+      ],
+      initEditor: () => { STATE.setState("human_edit"); const h = new Human(999, 0, 0); STATE.setEditorPage(0); h.state=EDITOR.PAGES[0].state; STATE.setEditorHuman(h); EDITOR.refreshButtons(); },
+      refreshButtons: () => {
+        EDITOR.EDITOR_BUTTONS.length = 0;
+        EDITOR.EDITOR_BUTTONS.push({type:'page_nav', dir:-1, rect:{x:10,y:15,w:30,h:30}}, {type:'page_nav', dir:1, rect:{x:230,y:15,w:30,h:30}});
+        const cp = EDITOR.PAGES[STATE.editorPage]; if(cp) cp.params.forEach((p,i) => EDITOR.EDITOR_BUTTONS.push({type:'param', name:p, y:80+i*25, minusRect:{x:160,y:80+i*25-15,w:25,h:25}, plusRect:{x:240,y:80+i*25-15,w:25,h:25}}));
+        ["walk", "climb", "fall", "escape", "fell_over", "drown", "goal", "shock"].forEach((s,i) => EDITOR.EDITOR_BUTTONS.push({type:'state', name:s, rect:{x:480,y:50+i*35,w:90,h:30}}));
+      },
+      handleEditorClick: (mx, my) => {
+        for (let btn of EDITOR.EDITOR_BUTTONS) {
+          if (btn.type==='page_nav' && mx>=btn.rect.x && mx<=btn.rect.x+btn.rect.w && my>=btn.rect.y && my<=btn.rect.y+btn.rect.h) { if(btn.dir===-1) EDITOR.prevPage(); else EDITOR.nextPage(); return true; }
+          if (btn.type==='param') {
+            if (mx>=btn.minusRect.x && mx<=btn.minusRect.x+btn.minusRect.w && my>=btn.minusRect.y && my<=btn.minusRect.y+btn.minusRect.h) { CONST.HUMAN_RENDER_CONFIG[btn.name] = Math.round((CONST.HUMAN_RENDER_CONFIG[btn.name]-0.1)*10)/10; if (['SPEECH_FONT_SIZE','SIGMA_ROTATION','SIGMA_SIZE'].includes(btn.name)) RENDER.initHumanAtlas(); return true; }
+            if (mx>=btn.plusRect.x && mx<=btn.plusRect.x+btn.plusRect.w && my>=btn.plusRect.y && my<=btn.plusRect.y+btn.plusRect.h) { CONST.HUMAN_RENDER_CONFIG[btn.name] = Math.round((CONST.HUMAN_RENDER_CONFIG[btn.name]+0.1)*10)/10; if (['SPEECH_FONT_SIZE','SIGMA_ROTATION','SIGMA_SIZE'].includes(btn.name)) RENDER.initHumanAtlas(); return true; }
+          }
+          if (btn.type==='state' && mx>=btn.rect.x && mx<=btn.rect.x+btn.rect.w && my>=btn.rect.y && my<=btn.rect.y+btn.rect.h) { STATE.setEditorState(btn.name); if(STATE.editorHuman) STATE.editorHuman.state=btn.name; const idx=EDITOR.PAGES.findIndex(p=>p.state===btn.name); if(idx!==-1) STATE.setEditorPage(idx); EDITOR.refreshButtons(); return true; }
+        } return false;
+      },
+      prevPage: () => { STATE.setEditorPage((STATE.editorPage-1+EDITOR.PAGES.length)%EDITOR.PAGES.length); if(STATE.editorHuman){STATE.editorHuman.state=EDITOR.PAGES[STATE.editorPage].state; STATE.setEditorState(STATE.editorHuman.state);} EDITOR.refreshButtons(); },
+      nextPage: () => { STATE.setEditorPage((STATE.editorPage+1)%EDITOR.PAGES.length); if(STATE.editorHuman){STATE.editorHuman.state=EDITOR.PAGES[STATE.editorPage].state; STATE.setEditorState(STATE.editorHuman.state);} EDITOR.refreshButtons(); },
+      updateEditor: (dt) => { if(!STATE.editorHuman)return; STATE.editorHuman.animTime+=dt; if(STATE.editorHuman.speechTimer>0)STATE.editorHuman.speechTimer-=dt; if(STATE.elapsed-STATE.editorLastSpeech>=10){ const keys=Object.keys(HUMAN_TEXT_JP.SPEECH), k=keys[Math.floor(Math.random()*keys.length)], t=HUMAN_TEXT_JP.SPEECH[k]; STATE.editorHuman.speechText=t[Math.floor(Math.random()*t.length)]; STATE.editorHuman.speechTimer=2.5; STATE.setEditorLastSpeech(STATE.elapsed); } }
+    });
+
+    // =========================
+    // core/score.js
+    // =========================
+    Object.assign(SCORE, { score: 0, addScore: (p) => SCORE.score += p, resetScore: () => SCORE.score = 0 });
+
+    // =========================
+    // core/input.js
+    // =========================
+    function setupInput() {
+      const cv = document.querySelector('canvas');
+      cv.addEventListener("mousedown", e => { if(STATE.state==="human_edit") { const r=cv.getBoundingClientRect(); EDITOR.handleEditorClick((e.clientX-r.left)*(cv.width/r.width), (e.clientY-r.top)*(cv.height/r.height)); } });
+      window.addEventListener("keydown", e => {
+        if(STATE.state==="human_edit"){ if(e.key==="ArrowLeft")EDITOR.prevPage(); if(e.key==="ArrowRight")EDITOR.nextPage(); if(e.key==="Escape"||e.key==="q"||e.key==="Q")STATE.setState("title"); return; }
+        if(STATE.state==="title"){ if(e.code==="Digit1"){EDITOR.initEditor(); return;} if(e.code==="Space"&&STATE.spaceReleased){STATE.setState("intro"); STATE.setElapsed(0); STATE.setSpaceReleased(false);} return; }
+        if(STATE.state==="intro"){ if(e.code==="Space"&&STATE.spaceReleased){STATE.resetGame(); BLOCK.setPair(null); WORLD.updateSafe(); STATE.setRenderSafeLine(WORLD.safeLine); GAME.spawnHumans(); STATE.setState("playing"); STATE.setElapsed(0); STATE.setSpaceReleased(false);} return; }
+        if((STATE.state==="clear"||STATE.state==="gameover")){ if(e.code==="Space"&&STATE.spaceReleased){STATE.resetGame(); BLOCK.setPair(null); WORLD.updateSafe(); STATE.setRenderSafeLine(WORLD.safeLine); RENDER.resetClouds(); STATE.setState("title"); STATE.setElapsed(0); STATE.setSpaceReleased(false);} return; }
+        if(e.code==="Space"){STATE.setSpaceReleased(false); return;}
+        if(e.key==="6"){const al=STATE.humans.filter(h=>!h.isDead); if(al.length>0){al[Math.floor(Math.random()*al.length)].die('none'); STATE.showDebugMessage("DEBUG: Human Died");}}
+        if(e.key==="7"){STATE.setSpawnEnabled(!STATE.spawnEnabled); STATE.showDebugMessage("SPAWN: "+(STATE.spawnEnabled?"ON":"OFF"));}
+        if(e.code==="KeyQ"&&STATE.state==="playing"){STATE.setIsPaused(!STATE.isPaused); return;}
+        if(STATE.state==="playing"){
+          if(e.code==="Digit1"||e.code==="Numpad1"){STATE.fallingBombs.push({x:Math.floor(Math.random()*6),y:WORLD.cameraY-2,timer:10+Math.random()*20}); STATE.showDebugMessage("BOMB SPAWNED!");}
+          if(e.code==="Digit2"||e.code==="Numpad2"){STATE.setDebugPauseCracking(!STATE.debugPauseCracking); STATE.showDebugMessage(STATE.debugPauseCracking?"CRACK PAUSED":"CRACK RESUMED");}
+          if(e.code==="Digit3"||e.code==="Numpad3"){STATE.setDebugPauseWater(!STATE.debugPauseWater); STATE.showDebugMessage(STATE.debugPauseWater?"WATER PAUSED":"WATER RESUMED");}
+          if(e.code==="Digit4"||e.code==="Numpad4"){WORLD.setWater(Math.max(-1,WORLD.water-5)); STATE.showDebugMessage("WATER -50m");}
+          if(e.code==="Digit5"||e.code==="Numpad5"){WORLD.setWater(WORLD.water+5); STATE.showDebugMessage("WATER +50m");}
+        }
+        if(STATE.state!=="playing"||STATE.isPaused||!BLOCK.pair) return;
+        if(e.key==="ArrowLeft"){BLOCK.pair.x--; if(BLOCK.hit(BLOCK.blocks(BLOCK.pair)))BLOCK.pair.x++;}
+        if(e.key==="ArrowRight"){BLOCK.pair.x++; if(BLOCK.hit(BLOCK.blocks(BLOCK.pair)))BLOCK.pair.x--;}
+        if(e.key==="ArrowUp"){const pr=BLOCK.pair.rot, px=BLOCK.pair.x; BLOCK.pair.rot=(BLOCK.pair.rot+1)%4; if(BLOCK.hit(BLOCK.blocks(BLOCK.pair))){let ok=false; for(let dx of [-1,1,-2,2]){BLOCK.pair.x=px+dx; if(!BLOCK.hit(BLOCK.blocks(BLOCK.pair))){ok=true; break;}} if(!ok){BLOCK.pair.rot=pr; BLOCK.pair.x=px;}}}
+        if(e.key==="ArrowDown")BLOCK.setFast(true); if(e.key==="r"||e.key==="R")STATE.setRadarAbstractionMode(!STATE.radarAbstractionMode);
+      });
+      document.addEventListener("keyup", e=>{if(e.code==="Space")STATE.setSpaceReleased(true); if(e.key==="ArrowDown")BLOCK.setFast(false);});
+    }
+
+    // =========================
+    // core/gameLoop.js
+    // =========================
+    let last = 0, fCount = 0, lastFps = 0;
+    function loop(t = 0) {
+      const dt_ms = t - last; if (dt_ms < 1000/60) { requestAnimationFrame(loop); return; }
+      let dt = Math.min(0.1, dt_ms/1000); last = t; fCount++;
+      if(t-lastFps>1000){ STATE.setFps(Math.round(fCount*1000/(t-lastFps))); fCount=0; lastFps=t; }
+      if(!STATE.isPaused){ GAME.update(dt); if(!(STATE.state==="playing"&&STATE.floodPhase==="blink")) EFFECTS.updateParticles(); }
+      RENDER.draw(dt); requestAnimationFrame(loop);
+    }
+
+    // --- Init ---
+    window.onload = () => {
+      const canvas = document.getElementById("game"); canvas.width = 590; canvas.height = 480;
+      RENDER.resetClouds(); setupInput(); loop();
+    };
+  </script>
+</body>
+</html>
